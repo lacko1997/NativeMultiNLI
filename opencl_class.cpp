@@ -11,21 +11,26 @@ void OpenCL::getDeviceInfo(cl_device_id gpu) {
 	clGetDeviceInfo(gpu, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &global_mem_size, NULL);
 	cout << global_mem_size / (1024 * 1024) << " MB" << endl;
 }
-void OpenCL::initOpenCL() {
+bool OpenCL::init_OpenCL() {
 	uint32_t platform_c;
 	clGetPlatformIDs(0, NULL, &platform_c);
+	if (platform_c == 0) {
+		cout << "No OpenCL platform found on your device" << endl;
+		return false;
+	}
 	platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id)*platform_c);
 	clGetPlatformIDs(platform_c, platforms, &platform_c);
-
+	
 	uint32_t gpu_c;
 	clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, NULL, &gpu_c);
 	gpus = (cl_device_id*)malloc(sizeof(cl_device_id)*gpu_c);
 	clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, gpu_c, gpus, &gpu_c);
 
 	ctx = clCreateContext(NULL, 1, &gpus[0], NULL, NULL, NULL);
+	return true;
 }
 
-void OpenCL::createNeuralNetworksProgram(const char * src, matrix_size_category category) {
+void OpenCL::create_neural_networks_program(const char * src, matrix_size_category category) {
 	const char* options=NULL;
 	switch (category) {
 	case MATRIX_SIZE_SMALL:
@@ -64,8 +69,10 @@ void OpenCL::createNeuralNetworksProgram(const char * src, matrix_size_category 
 }
 
 OpenCL::OpenCL(const char* src,matrix_size_category category) {
-	initOpenCL();
-	createNeuralNetworksProgram(src, category);
+	success=init_OpenCL();
+	if (success) {
+		create_neural_networks_program(src, category);
+	}
 }
 
 matrix matrix::operator=(matrix mat){

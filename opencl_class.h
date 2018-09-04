@@ -28,6 +28,8 @@ typedef enum matrxi_size_category {
 
 class OpenCL {
 private:
+	bool success;
+
 	cl_platform_id *platforms;
 	cl_device_id *gpus;
 	cl_context ctx;
@@ -35,11 +37,13 @@ private:
 	cl_program matrix_ops;
 
 	uint32_t tile_size;
+
+	bool init_OpenCL();
+	void create_neural_networks_program(const char * src, matrix_size_category category);
 public:
 	void getDeviceInfo(cl_device_id gpu);
-	void initOpenCL();
-	void createNeuralNetworksProgram(const char * src, matrix_size_category category);
-
+	
+	bool isCreated() { return success; }
 	OpenCL(const char* src, matrix_size_category category);
 
 	cl_context getContext() { return ctx; }
