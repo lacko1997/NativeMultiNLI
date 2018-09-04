@@ -147,7 +147,7 @@ bool NeuralNetwork::findGraphPointById(uint32_t id, uint32_t *loc) {
 	int M = (S + L) / 2;
 	while (S <= L) {
 		if ((*graph_points)[M]->id == id) {
-			*loc = M;
+		*loc = M;
 			return true;
 		}
 		else if ((*graph_points)[M]->id > id) {
@@ -167,6 +167,10 @@ bool NeuralNetwork::findGraphPointById(uint32_t id, uint32_t *loc) {
 }
 
 void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
+	if (!context->isCreated()) {
+		cout << "OpenCL not supprted. NeuralNetwork::setOutput cannot be called."<<endl;
+		return;
+	}
 	if (output != NULL) {
 		cout << "An output layer was already set." << endl;
 		return;
