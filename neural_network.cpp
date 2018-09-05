@@ -240,6 +240,9 @@ bool NeuralNetwork::insert_graph_point(graph_point *index){
 
 NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	this->context = context;
+	if (context->isCreated()) {
+		cout << "OpenCL not supported. NeuralNetwork object cannot be created properly." << endl;
+	}
 	input = new Ptr_List<graph_point*>();
 	graph_points =new vector<graph_point*>();
 	connections = new vector<connection*>();
@@ -372,6 +375,19 @@ bool NeuralNetwork::insert_connection(connection *index) {
 }
 
 void NeuralNetwork::init(){
+	if (!context->isCreated()) {
+		cout << "OpenCL not supported. The function NeuralNetwork::init cannot be executed" << endl;
+		return;
+	}
+	if (input->size() == 0 || output == NULL) {
+		if (input->size() == 0) {
+			cout << "No input layer defined.D Define at least one input layer." << endl;
+		}
+		if (output == NULL) {
+			cout << " No output layer defined. Set an output layer" << endl;
+		}
+		return;
+	}
 	mt19937 generator(TIME_MILLIS);
 	for (int i = 0; i < connections->size(); i++) {
 		float sigma = sqrt(2.0f/((*connections)[i]->from->layer_size + (*connections)[i]->to->layer_size));
