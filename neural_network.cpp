@@ -85,13 +85,17 @@ bool NeuralNetwork::find_graph_point(graph_point *index, uint32_t *loc){
 	return false;
 }
 
-void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id){
+void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl_kernel activation){
 	uint32_t loc_src, loc_dst;
 	if (findGraphPointById(src, &loc_src)&&findGraphPointById(dst,&loc_dst)) {
 		graph_point **input_layer=input->iterator();
+		if (output->id == src) {
+			cout << "[Source] Graph point with id " << src << "is an output layer. It cannot be the source of a connection." << endl;
+			return;
+		}
 		while (input_layer) {
 			if ((*input_layer)->id == dst) {
-				cout << "[Destination] Graph point with id " << dst << " is an input layer. It cannot be a destination of a connection." << endl;
+				cout << "[Destination] Graph point with id " << dst << " is an input layer. It cannot be the destination of a connection." << endl;
 				return;
 			}
 			input_layer=input->next();
@@ -168,7 +172,7 @@ bool NeuralNetwork::findGraphPointById(uint32_t id, uint32_t *loc) {
 
 void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 	if (!context->isCreated()) {
-		cout << "OpenCL not supprted. NeuralNetwork::setOutput cannot be called."<<endl;
+		cout << "OpenCL not supported. NeuralNetwork::setOutput cannot be called."<<endl;
 		return;
 	}
 	if (output != NULL) {
@@ -240,8 +244,9 @@ bool NeuralNetwork::insert_graph_point(graph_point *index){
 
 NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	this->context = context;
-	if (context->isCreated()) {
+	if (!context->isCreated()) {
 		cout << "OpenCL not supported. NeuralNetwork object cannot be created properly." << endl;
+		return;
 	}
 	input = new Ptr_List<graph_point*>();
 	graph_points =new vector<graph_point*>();
@@ -364,7 +369,7 @@ bool NeuralNetwork::insert_connection(connection *index) {
 		if (*(*connections)[loc] > connect) {
 			connections->insert(connections->begin() + loc, index);
 		}
-		else {
+	else {
 			connections->insert(connections->begin() + (loc + 1), index);
 		}
 		return true;

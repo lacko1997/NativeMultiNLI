@@ -71,7 +71,7 @@ public:
 	void train(float** inputs,uint32_t type);
 	uint32_t predict(float **inputs);
 
-	void connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id);
+	void connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id, cl_kernel activation);
 	bool findGraphPointById(uint32_t id, uint32_t *loc);
 	bool findConnectionById(uint32_t id, uint32_t *loc);
 	void setOutput(uint32_t layer_id,uint32_t layer_size);
