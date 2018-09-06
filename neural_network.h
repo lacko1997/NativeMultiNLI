@@ -10,10 +10,14 @@ typedef struct graph_point;
 typedef struct connection;
 typedef struct connection {
 	uint32_t id;
-	cl_mem memory;
+	cl_mem mat_mem;
+	cl_mem bias_mem;
+	
 	fvector biases;
-	cl_kernel activation;
 	matrix connection_weights;
+
+	cl_kernel activation;
+
 	graph_point* from;
 	graph_point* to;
 
@@ -21,16 +25,29 @@ typedef struct connection {
 	bool operator>(connection other) { return other.id < id; }
 	bool operator==(connection other) { return other.id == id; }
 }connection;
+
+typedef struct classsifiedTrainingInput {
+	float **input;
+	uint32_t type;
+}classifiedTrainigInput;
+
+typedef struct recurrentClassifiedTrainingInput {
+	uint32_t vec_count;
+	float ***input;
+	uint32_t type;
+}recurrentClassifiedTrainingInput;
+
 typedef struct graph_point {
 	uint32_t id;
-
 	uint8_t visited = false;
+
 	uint32_t kernel_layer_size;
 	uint32_t layer_size;
+
+	cl_mem layer_mem;
+
 	Ptr_List<connection*> *out;
 	Ptr_List<connection*> *in;
-	
-	uint32_t max_outgoing_count();
 
 	bool operator<(graph_point other) { return other.id > id; }
 	bool operator>(graph_point other) { return other.id < id; }
@@ -38,12 +55,6 @@ typedef struct graph_point {
 };
 class NeuralNetwork {
 private:
-	float** layer_data;
-	float* output_data;
-
-	cl_mem data_mem;
-	cl_mem output_mem;
-
 	Ptr_List<graph_point*> *input;
 	graph_point *output = NULL;
 
@@ -56,6 +67,9 @@ private:
 	cl_kernel skalar_div;
 	cl_kernel vec_mat_mul;
 
+	float* output_data;
+	cl_mem output_mem;
+
 	void softmax();
 	bool find_graph_point(graph_point *index,uint32_t *loc);
 	bool insert_graph_point(graph_point *index);
@@ -64,10 +78,11 @@ private:
 	bool insert_connection(connection *conn);
 
 	void init();
+	void copy_to_input();
 	void forward_propagation(float* data);
 public:
 	NeuralNetwork(OpenCL *context);
-	void trainRecurrent(float ***input,uint32_t type);
+	void trainRecurrent(uint32_t input_count,recurrentClassifiedTrainingInput *inputs);
 	void train(float** inputs,uint32_t type);
 	uint32_t predict(float **inputs);
 

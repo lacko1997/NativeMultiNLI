@@ -15,12 +15,12 @@ bool OpenCL::init_OpenCL() {
 	uint32_t platform_c;
 	clGetPlatformIDs(0, NULL, &platform_c);
 	if (platform_c == 0) {
-		cout << "No OpenCL platform found on your device" << endl;
+		cout << "No OpenCL platform found." << endl;//return false;
 		return false;
 	}
 	platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id)*platform_c);
 	clGetPlatformIDs(platform_c, platforms, &platform_c);
-	
+
 	uint32_t gpu_c;
 	clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, NULL, &gpu_c);
 	gpus = (cl_device_id*)malloc(sizeof(cl_device_id)*gpu_c);

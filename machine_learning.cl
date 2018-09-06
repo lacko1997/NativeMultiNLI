@@ -2,7 +2,7 @@
 
 __kernel void vec_mat_mul(	const int L,
 							const int M,
-							__global float* layer,
+							__global float *layer,
 							__global float *matrix,
 							__global float *result){
 	/*int m=get_global_id(0);

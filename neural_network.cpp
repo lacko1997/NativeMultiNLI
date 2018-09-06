@@ -38,9 +38,8 @@ inline void sum_elements(OpenCL *context,cl_kernel reduce_sum,uint32_t *size,uin
 void NeuralNetwork::softmax() {
 	size_t size[] = { output->kernel_layer_size };
 	size_t sizel[] = { context->getTileSize() };
-
 	//raise the output to the power of E (Euler-number)
-	powOfE(context,softmax_pow,output_mem,output,size,output_data);
+	powOfE(context,softmax_pow,output->layer_mem,output,size,output_data);
 	float sum[1];
 	sum_elements(context, reduce_sum, size, sizel, output_mem, sum);
 	size[0] = output->kernel_layer_size;
@@ -179,7 +178,6 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		cout << "An output layer was already set." << endl;
 		return;
 	}
-	output_data = (float*)malloc(sizeof(float)*layer_size);
 	output = (graph_point*)malloc(sizeof(graph_point));
 	output->id = layer_id;
 	if (insert_graph_point(output)) {
@@ -187,7 +185,6 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		if (layer_size % 32 != 0) {
 			layer_size += (32 - layer_size % 32);
 		}
-		output_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, layer_size * sizeof(float), NULL, NULL);
 		output->kernel_layer_size = layer_size;
 		output->in = new Ptr_List<connection*>();
 		output->visited = false;
@@ -195,15 +192,7 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
 		free(output);
 	};
-	for (int i = 0; i < layer_size; i++) {
-		if (i < output->layer_size) {
-			output_data[i] = i;
-		}else {
-			output_data[i] = 0.0f;
-		}
-		cout << output_data[i] << " ";
-	}
-	cout << endl;
+	//cout << endl;
 	softmax();
 }
 
@@ -260,6 +249,10 @@ NeuralNetwork::NeuralNetwork(OpenCL *context) {
 };
 
 void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel activation) {
+	if (!context->isCreated()) {
+		cout << "OpenCL not supported. NeuralNetwork::addLayer cannot be executed" << endl;
+		return;
+	}
 	graph_point* curr=(graph_point*)malloc(sizeof(graph_point*));
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
@@ -273,12 +266,17 @@ void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel a
 }
 
 void NeuralNetwork::addInputLayer(uint32_t layer_id, uint32_t layer_size){
+	if (!context->isCreated()) {
+		cout << "OpenCL not supported. NeuralNetwork::addInputLayer cannot be executed" << endl;
+		return;
+	}
 	graph_point* curr = (graph_point*)malloc(sizeof(graph_point*));
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->layer_size = layer_size;
 		curr->visited = false;
 		curr->out = new Ptr_List<connection*>();
+		curr->layer_mem=clCreateBuffer(context->getContext(),CL_MEM_READ_WRITE,sizeof(float)*curr->kernel_layer_size,NULL,NULL);
 		input->push_back(curr);
 	} else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
@@ -379,7 +377,7 @@ bool NeuralNetwork::insert_connection(connection *index) {
 	}
 }
 
-void NeuralNetwork::init(){
+void NeuralNetwork::init() {
 	if (!context->isCreated()) {
 		cout << "OpenCL not supported. The function NeuralNetwork::init cannot be executed" << endl;
 		return;
@@ -395,27 +393,31 @@ void NeuralNetwork::init(){
 	}
 	mt19937 generator(TIME_MILLIS);
 	for (int i = 0; i < connections->size(); i++) {
-		float sigma = sqrt(2.0f/((*connections)[i]->from->layer_size + (*connections)[i]->to->layer_size));
+		float sigma = sqrt(2.0f / ((*connections)[i]->from->layer_size + (*connections)[i]->to->layer_size));
 		normal_distribution<float> initializer(0.0f, sigma);
-		matrix *curr= &(*connections)[i]->connection_weights;
-		(*connections)[i]->memory = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, curr->kernel_width*curr->height*sizeof(float),NULL,NULL);
+		matrix *curr = &(*connections)[i]->connection_weights;
+		fvector *currv = &(*connections)[i]->biases;
+		(*connections)[i]->mat_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, curr->kernel_width*curr->height * sizeof(float), NULL, NULL);
 		for (int y = 0; y < curr->height; y++) {
 			for (int x = 0; x < curr->width; x++) {
-				curr->data[y*curr->width+x]=initializer(generator);
+				curr->data[y*curr->width + x] = initializer(generator);
 			}
 		}
+		for (int i = 0; i < currv->kernel_length; i++) {
+			if (i < currv->length) {
+				currv
+			}
+		};
 	}
-	uint32_t max_layer_size=(*graph_points)[0]->layer_size;
+	uint32_t max_layer_size = (*graph_points)[0]->layer_size;
 	for (int i = 1; i < graph_points->size(); i++) {
 		if (max_layer_size < (*graph_points)[i]->kernel_layer_size) {
 			max_layer_size = (*graph_points)[i]->kernel_layer_size;
 		}
 	}
-	/*layer_data = (float*)malloc(sizeof(float)*max_layer_size);
-	for (int i = 0; i < max_layer_size; i++) {
-		layer_data[i] = 0.0f;
-	}
-	data_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, max_layer_size * sizeof(float), NULL, NULL);*/
+}
+void NeuralNetwork::copy_to_input(){
+	
 }
 /*
 clEnqueueWriteBuffer(context->getQueue(), (*(*curr)->out)[0]->memory, false, 0, sizeof(float)*(*curr)->layer_size, NULL, 0, NULL, NULL);
@@ -432,14 +434,9 @@ void NeuralNetwork::forward_propagation(float * data){
 		}
 		curr = input->next();
 	}
-	connection ***curr_c=searching->iterator();
-	while (curr_c!=NULL) {
+	connection ***curr_conn=searching->iterator();
+	while (curr_conn!=NULL) {
 		
 	}
 	delete searching;
-}
-
-uint32_t graph_point::max_outgoing_count(){
-	Ptr_List<connection**> *conns = new Ptr_List<connection**>();
-	return uint32_t();
 }
