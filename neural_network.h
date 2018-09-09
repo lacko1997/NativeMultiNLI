@@ -78,7 +78,7 @@ private:
 	bool insert_connection(connection *conn);
 
 	void init();
-	void copy_to_input();
+	void copy_to_input(float** data);
 	void forward_propagation(float* data);
 public:
 	NeuralNetwork(OpenCL *context);

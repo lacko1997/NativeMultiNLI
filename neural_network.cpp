@@ -416,8 +416,15 @@ void NeuralNetwork::init() {
 		}
 	}
 }
-void NeuralNetwork::copy_to_input(){
-	
+void NeuralNetwork::copy_to_input(float **data){
+	graph_point **curr = input->iterator();
+	int i = 0;
+	while (curr != NULL) {
+		clEnqueueWriteBuffer(context->getQueue(), (*input)[i]->layer_mem, false,0, sizeof(float)*(*curr)->layer_size,data[i],0,NULL,NULL);
+		curr = input->next();
+		i++;
+	}
+	clFinish(context->getQueue());
 }
 /*
 clEnqueueWriteBuffer(context->getQueue(), (*(*curr)->out)[0]->memory, false, 0, sizeof(float)*(*curr)->layer_size, NULL, 0, NULL, NULL);
