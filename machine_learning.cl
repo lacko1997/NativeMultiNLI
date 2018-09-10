@@ -5,12 +5,6 @@ __kernel void vec_mat_mul(	const int L,
 							__global float *layer,
 							__global float *matrix,
 							__global float *result){
-	/*int m=get_global_id(0);
-	float acc=0.0f;
-	
-	for(int l=0;l<L;l++){
-		acc+=layer[l]*matrix[M*l+m];
-	}*/
 	int m=get_global_id(0);
 	int lm=get_local_id(0);
 	
@@ -34,6 +28,36 @@ __kernel void vec_mat_mul(	const int L,
 		}
 	}
 	result[m]=acc[m%WPT];
+}
+
+__kernel void vec_mat_mul_add(	const int L,
+							const int M,
+							__global float *layer,
+							__global float *matrix,
+							__global float *result){
+	int m=get_global_id(0);
+	int lm=get_local_id(0);
+	
+	__local float locals[TS];
+	
+	float vReg=0.0f;
+	float mReg[WPT];
+	float acc[WPT];
+	
+	for(int i=0;i<L;i++){
+		locals[lm]=matrix[i*M+m];
+		vReg=layer[i];
+		for(int j=0;j<WPT;j++){
+			mReg[j]=locals[lm];
+		}
+		
+		barrier(CLK_LOCAL_MEM_FENCE);
+		
+		for(int j=0;j<WPT;j++){
+			acc[j]+=vReg*mReg[j];
+		}
+	}
+	result[m]+=acc[m%WPT];
 }
 
 __kernel void softmax_pow(const int N,	

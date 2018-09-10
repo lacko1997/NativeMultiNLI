@@ -26,20 +26,21 @@ typedef struct connection {
 	bool operator==(connection other) { return other.id == id; }
 }connection;
 
-typedef struct classsifiedTrainingInput {
+typedef struct ClasssifiedTrainingInput {
 	float **input;
 	uint32_t type;
-}classifiedTrainigInput;
+}ClassifiedTrainigInput;
 
-typedef struct recurrentClassifiedTrainingInput {
+typedef struct RecurrentClassifiedTrainingInput {
 	uint32_t vec_count;
 	float ***input;
 	uint32_t type;
-}recurrentClassifiedTrainingInput;
+}RecurrentClassifiedTrainingInput;
 
 typedef struct graph_point {
 	uint32_t id;
-	uint8_t visited = false;
+	bool visited = false;
+	bool finished = false;
 
 	uint32_t kernel_layer_size;
 	uint32_t layer_size;
@@ -66,6 +67,7 @@ private:
 	cl_kernel softmax_pow;
 	cl_kernel skalar_div;
 	cl_kernel vec_mat_mul;
+	cl_kernel vec_mat_mul_add;
 
 	float* output_data;
 	cl_mem output_mem;
@@ -82,7 +84,7 @@ private:
 	void forward_propagation(float* data);
 public:
 	NeuralNetwork(OpenCL *context);
-	void trainRecurrent(uint32_t input_count,recurrentClassifiedTrainingInput *inputs);
+	void trainRecurrent(uint32_t input_count,RecurrentClassifiedTrainingInput *inputs);
 	void train(float** inputs,uint32_t type);
 	uint32_t predict(float **inputs);
 

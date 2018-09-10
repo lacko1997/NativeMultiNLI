@@ -246,6 +246,7 @@ NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	softmax_pow = clCreateKernel(context->getProgram(), "softmax_pow", NULL);
 	skalar_div = clCreateKernel(context->getProgram(), "skalar_div", NULL);
 	vec_mat_mul = clCreateKernel(context->getProgram(), "vec_mat_mul", NULL);
+	vec_mat_mul_add = clCreateKernel(context->getProgram(), "vec_mat_mul_add", NULL);
 };
 
 void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel activation) {
@@ -387,7 +388,7 @@ void NeuralNetwork::init() {
 			cout << "No input layer defined.D Define at least one input layer." << endl;
 		}
 		if (output == NULL) {
-			cout << " No output layer defined. Set an output layer" << endl;
+			cout << "No output layer defined. Set an output layer" << endl;
 		}
 		return;
 	}
@@ -412,12 +413,6 @@ void NeuralNetwork::init() {
 			}
 		};
 	}
-	uint32_t max_layer_size = (*graph_points)[0]->layer_size;
-	for (int i = 1; i < graph_points->size(); i++) {
-		if (max_layer_size < (*graph_points)[i]->kernel_layer_size) {
-			max_layer_size = (*graph_points)[i]->kernel_layer_size;
-		}
-	}
 }
 void NeuralNetwork::copy_to_input(float **data){
 	graph_point **curr = input->iterator();
@@ -433,20 +428,20 @@ void NeuralNetwork::copy_to_input(float **data){
 clEnqueueWriteBuffer(context->getQueue(), (*(*curr)->out)[0]->memory, false, 0, sizeof(float)*(*curr)->layer_size, NULL, 0, NULL, NULL);
 clSetKernelArg(vec_mat_mul, 0, );
 */
-void NeuralNetwork::forward_propagation(float * data){
-	Ptr_List<connection**> *searching = new Ptr_List<connection**>();
-	graph_point **curr = input->iterator();
+inline void begin_propagation(Ptr_List<connection**> *conn,Ptr_List<graph_point*> *input) {
+	graph_point** curr = input->iterator();
 	while (curr != NULL) {
-		connection **item=(*curr)->out->iterator();
-		while (item != NULL) {
-			searching->push_back(item);
-			item= (*curr)->out->next();
+		connection **conn_curr=(*curr)->out->iterator();
+		(*curr)->finished=true;
+		while (conn_curr != NULL) {
+			conn->push_back(conn_curr);
+			conn_curr = (*curr)->out->next();
 		}
 		curr = input->next();
 	}
-	connection ***curr_conn=searching->iterator();
-	while (curr_conn!=NULL) {
-		
-	}
-	delete searching;
+}
+void NeuralNetwork::forward_propagation(float * data){
+	Ptr_List<connection*> *layers = new Ptr_List<connection*>();
+	
+	delete layers;
 }

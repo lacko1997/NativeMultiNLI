@@ -42,7 +42,7 @@ inline Ptr_List<T>::Ptr_List(){
 }
 
 template<typename T>
-inline Ptr_List<T>::~Ptr_List<T*>() {
+inline Ptr_List<T>::~Ptr_List/*<T*>*/() {
 	curr = start;
 	while (curr != end) {
 		token<T> *del = curr;
@@ -148,7 +148,7 @@ inline T Ptr_List<T>::operator[](int ind){
 	for (int i = 0; i < ind; i++) {
 		curr = curr->next;
 	}
-	return curr;
+	return curr->item;
 }
 
 template<typename T>
