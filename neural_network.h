@@ -53,6 +53,12 @@ typedef struct graph_point {
 	bool operator>(graph_point other) { return other.id < id; }
 	bool operator==(graph_point other) { return other.id == id; }
 };
+
+typedef struct layer_op{
+	graph_point *output;
+	Ptr_List<graph_point*> *inputs;
+	(graph_point *operation)(Ptr_List<graph_point>);
+}layer_op;
 class NeuralNetwork {
 private:
 	Ptr_List<graph_point*> *input;
