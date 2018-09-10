@@ -405,7 +405,10 @@ void NeuralNetwork::init() {
 		}
 		for (int i = 0; i < currv->kernel_length; i++) {
 			if (i < currv->length) {
-				currv
+				currv->data[i]= initializer(generator);
+			}
+			else {
+				currv->data[i] = 0.0f;
 			}
 		};
 	}
