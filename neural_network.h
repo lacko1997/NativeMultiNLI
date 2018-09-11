@@ -39,8 +39,10 @@ typedef struct RecurrentClassifiedTrainingInput {
 
 typedef struct graph_point {
 	uint32_t id;
-	bool visited = false;
-	bool finished = false;
+
+	bool visited;
+	bool finished;
+	uint16_t recurrent;
 
 	uint32_t kernel_layer_size;
 	uint32_t layer_size;
@@ -58,7 +60,7 @@ typedef struct graph_point {
 typedef struct layer_op{
 	graph_point *output;
 	Ptr_List<graph_point*> *inputs;
-	(graph_point *operation)(Ptr_List<graph_point>);
+	graph_point *(*operation)(Ptr_List<graph_point>);
 }layer_op;
 class NeuralNetwork {
 private:

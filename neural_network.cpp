@@ -277,6 +277,8 @@ void NeuralNetwork::addInputLayer(uint32_t layer_id, uint32_t layer_size){
 		curr->layer_size = layer_size;
 		curr->visited = false;
 		curr->out = new Ptr_List<connection*>();
+		curr->visited = true;
+		curr->finished = true;
 		curr->layer_mem=clCreateBuffer(context->getContext(),CL_MEM_READ_WRITE,sizeof(float)*curr->kernel_layer_size,NULL,NULL);
 		input->push_back(curr);
 	} else {
@@ -441,7 +443,7 @@ inline void begin_propagation(Ptr_List<connection**> *conn,Ptr_List<graph_point*
 	}
 }
 void NeuralNetwork::forward_propagation(float * data){
-	Ptr_List<connection*> *layers = new Ptr_List<connection*>();
-	
+	Ptr_List<connection**> *layers = new Ptr_List<connection**>();
+	begin_propagation(layers,input);
 	delete layers;
 }
