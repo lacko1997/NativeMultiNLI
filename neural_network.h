@@ -5,7 +5,6 @@
 #include "ptr_list.h"
 #include "common.h"
 
-
 typedef struct graph_point;
 typedef struct connection;
 typedef struct connection {
@@ -71,11 +70,11 @@ private:
 	vector<connection*> *connections;
 	OpenCL *context;
 
-	cl_kernel reduce_sum;
-	cl_kernel softmax_pow;
-	cl_kernel skalar_div;
-	cl_kernel vec_mat_mul;
-	cl_kernel vec_mat_mul_add;
+	static cl_kernel reduce_sum;
+	static cl_kernel softmax_pow;
+	static cl_kernel skalar_div;
+	static cl_kernel vec_mat_mul;
+	static cl_kernel vec_mat_mul_add;
 
 	float* output_data;
 	cl_mem output_mem;
@@ -91,6 +90,7 @@ private:
 	void copy_to_input(float** data);
 	void forward_propagation(float* data);
 public:
+	static void getKernels(OpenCL *context);
 	NeuralNetwork(OpenCL *context);
 	void trainRecurrent(uint32_t input_count,RecurrentClassifiedTrainingInput *inputs);
 	void train(float** inputs,uint32_t type);

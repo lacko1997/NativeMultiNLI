@@ -35,6 +35,12 @@ inline void sum_elements(OpenCL *context,cl_kernel reduce_sum,uint32_t *size,uin
 	clFinish(context->getQueue());
 }
 
+cl_kernel NeuralNetwork::reduce_sum;
+cl_kernel NeuralNetwork::softmax_pow;
+cl_kernel NeuralNetwork::skalar_div;
+cl_kernel NeuralNetwork::vec_mat_mul;
+cl_kernel NeuralNetwork::vec_mat_mul_add;
+
 void NeuralNetwork::softmax() {
 	size_t size[] = { output->kernel_layer_size };
 	size_t sizel[] = { context->getTileSize() };
@@ -193,7 +199,7 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		free(output);
 	};
 	//cout << endl;
-	softmax();
+	//softmax();
 }
 
 bool NeuralNetwork::insert_graph_point(graph_point *index){
@@ -231,6 +237,14 @@ bool NeuralNetwork::insert_graph_point(graph_point *index){
 	}
 }
 
+void NeuralNetwork::getKernels(OpenCL * context){
+	reduce_sum = clCreateKernel(context->getProgram(), "reduce_sum", NULL);
+	softmax_pow = clCreateKernel(context->getProgram(), "softmax_pow", NULL);
+	skalar_div = clCreateKernel(context->getProgram(), "skalar_div", NULL);
+	vec_mat_mul = clCreateKernel(context->getProgram(), "vec_mat_mul", NULL);
+	vec_mat_mul_add = clCreateKernel(context->getProgram(), "vec_mat_mul_add", NULL);
+}
+
 NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	this->context = context;
 	if (!context->isCreated()) {
@@ -241,12 +255,6 @@ NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	graph_points =new vector<graph_point*>();
 	connections = new vector<connection*>();
 	output = NULL;
-
-	reduce_sum = clCreateKernel(context->getProgram(), "reduce_sum", NULL);
-	softmax_pow = clCreateKernel(context->getProgram(), "softmax_pow", NULL);
-	skalar_div = clCreateKernel(context->getProgram(), "skalar_div", NULL);
-	vec_mat_mul = clCreateKernel(context->getProgram(), "vec_mat_mul", NULL);
-	vec_mat_mul_add = clCreateKernel(context->getProgram(), "vec_mat_mul_add", NULL);
 };
 
 void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel activation) {
@@ -426,11 +434,8 @@ void NeuralNetwork::copy_to_input(float **data){
 	}
 	clFinish(context->getQueue());
 }
-/*
-clEnqueueWriteBuffer(context->getQueue(), (*(*curr)->out)[0]->memory, false, 0, sizeof(float)*(*curr)->layer_size, NULL, 0, NULL, NULL);
-clSetKernelArg(vec_mat_mul, 0, );
-*/
-inline void begin_propagation(Ptr_List<connection**> *conn,Ptr_List<graph_point*> *input) {
+
+inline void collect_first_connections(Ptr_List<connection**> *conn,Ptr_List<graph_point*> *input) {
 	graph_point** curr = input->iterator();
 	while (curr != NULL) {
 		connection **conn_curr=(*curr)->out->iterator();
@@ -444,6 +449,6 @@ inline void begin_propagation(Ptr_List<connection**> *conn,Ptr_List<graph_point*
 }
 void NeuralNetwork::forward_propagation(float * data){
 	Ptr_List<connection**> *layers = new Ptr_List<connection**>();
-	begin_propagation(layers,input);
+	collect_first_connections(layers,input);
 	delete layers;
 }
