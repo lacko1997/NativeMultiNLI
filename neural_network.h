@@ -7,6 +7,11 @@
 
 typedef struct graph_point;
 typedef struct connection;
+typedef enum VisitState {
+	VISIT_STATE_UNSEEN=0,
+	VISIT_STATE_VISITED=1,
+	VISIT_STATE_FINISHED=2
+}VisitState;
 typedef struct connection {
 	uint32_t id;
 	cl_mem mat_mem;
@@ -24,27 +29,32 @@ typedef struct connection {
 	bool operator>(connection other) { return other.id < id; }
 	bool operator==(connection other) { return other.id == id; }
 }connection;
-
+/*
+    The number of the class, where the given input belongs.
+	e.g.: the vector describes a boy (type=0), a girl(type=1) or a child=2.
+*/
 typedef struct ClasssifiedTrainingInput {
-	float **input;
+	float *input;
 	uint32_t type;
 }ClassifiedTrainigInput;
-
+/*
+   We use this,if the neural network has a recurrent component.
+   The type is used for the same reason as in the ClassifiedTrainingInput.
+*/
 typedef struct RecurrentClassifiedTrainingInput {
 	uint32_t vec_count;
-	float ***input;
+	float **input;
 	uint32_t type;
 }RecurrentClassifiedTrainingInput;
 
 typedef struct graph_point {
 	uint32_t id;
 
-	bool visited;
-	bool finished;
+	uint8_t visited;
 	uint16_t recurrent;
 
 	uint32_t kernel_layer_size;
-	uint32_t layer_size;
+	int32_t layer_size;
 
 	cl_mem layer_mem;
 
@@ -63,18 +73,18 @@ typedef struct layer_op{
 }layer_op;
 class NeuralNetwork {
 private:
+	static cl_kernel reduce_sum;
+	static cl_kernel softmax_pow;
+	static cl_kernel skalar_div;
+	static cl_kernel vec_mat_mul;
+	static cl_kernel vec_mat_mul_add;
+
 	Ptr_List<graph_point*> *input;
 	graph_point *output = NULL;
 
 	vector<graph_point*> *graph_points;
 	vector<connection*> *connections;
 	OpenCL *context;
-
-	static cl_kernel reduce_sum;
-	static cl_kernel softmax_pow;
-	static cl_kernel skalar_div;
-	static cl_kernel vec_mat_mul;
-	static cl_kernel vec_mat_mul_add;
 
 	float* output_data;
 	cl_mem output_mem;
@@ -93,7 +103,7 @@ public:
 	static void getKernels(OpenCL *context);
 	NeuralNetwork(OpenCL *context);
 	void trainRecurrent(uint32_t input_count,RecurrentClassifiedTrainingInput *inputs);
-	void train(float** inputs,uint32_t type);
+	void train(uint32_t input_count,ClassifiedTrainigInput *inputs);
 	uint32_t predict(float **inputs);
 
 	void connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id, cl_kernel activation);

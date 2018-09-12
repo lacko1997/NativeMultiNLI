@@ -123,9 +123,7 @@ void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl
 			mWidth += context->getTileSize() - remainder;
 		}
 		uint32_t mHeight = (*graph_points)[loc_dst]->layer_size;
-
 		conn->connection_weights.kernel_width = mWidth;
-
 		conn->connection_weights.data = (float*)malloc(sizeof(float)*mWidth*mHeight);
 
 		(*graph_points)[loc_src]->out->push_back(conn);
@@ -266,7 +264,7 @@ void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel a
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->in= new Ptr_List<connection*>();
-		curr->visited = false;
+		curr->visited = VISIT_STATE_UNSEEN;
 		curr->out = new Ptr_List<connection*>();
 	}else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
@@ -283,10 +281,8 @@ void NeuralNetwork::addInputLayer(uint32_t layer_id, uint32_t layer_size){
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->layer_size = layer_size;
-		curr->visited = false;
 		curr->out = new Ptr_List<connection*>();
-		curr->visited = true;
-		curr->finished = true;
+		curr->visited = VISIT_STATE_FINISHED;
 		curr->layer_mem=clCreateBuffer(context->getContext(),CL_MEM_READ_WRITE,sizeof(float)*curr->kernel_layer_size,NULL,NULL);
 		input->push_back(curr);
 	} else {
@@ -408,7 +404,9 @@ void NeuralNetwork::init() {
 		normal_distribution<float> initializer(0.0f, sigma);
 		matrix *curr = &(*connections)[i]->connection_weights;
 		fvector *currv = &(*connections)[i]->biases;
-		(*connections)[i]->mat_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, curr->kernel_width*curr->height * sizeof(float), NULL, NULL);
+		//create a memory for the weight_matrices.
+		(*connections)[i]->mat_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, (curr->kernel_width*curr->height) * sizeof(float), NULL, NULL);
+		(*connections)[i]->bias_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, currv->kernel_length*sizeof(float), NULL, NULL);
 		for (int y = 0; y < curr->height; y++) {
 			for (int x = 0; x < curr->width; x++) {
 				curr->data[y*curr->width + x] = initializer(generator);
@@ -439,7 +437,7 @@ inline void collect_first_connections(Ptr_List<connection**> *conn,Ptr_List<grap
 	graph_point** curr = input->iterator();
 	while (curr != NULL) {
 		connection **conn_curr=(*curr)->out->iterator();
-		(*curr)->finished=true;
+		(*curr)->visited=true;
 		while (conn_curr != NULL) {
 			conn->push_back(conn_curr);
 			conn_curr = (*curr)->out->next();
@@ -447,8 +445,17 @@ inline void collect_first_connections(Ptr_List<connection**> *conn,Ptr_List<grap
 		curr = input->next();
 	}
 }
+inline void step_forward(Ptr_List<connection**> *conn,OpenCL *context) {
+	connection ***curr = conn->iterator();
+	while (curr != NULL) {
+		uint8_t visited = (**curr)->to->visited;
+		cl_kernel kernel=visited==VISIT_STATE_UNSEEN?;
+		curr = conn->next;
+	}
+}
 void NeuralNetwork::forward_propagation(float * data){
 	Ptr_List<connection**> *layers = new Ptr_List<connection**>();
 	collect_first_connections(layers,input);
+	step_forward(layers, context);
 	delete layers;
 }
