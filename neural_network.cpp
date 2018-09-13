@@ -105,6 +105,9 @@ void NeuralNetwork::getMemoryInfo(){
 			if ((*graph_points)[i]->in) {
 				graph_point_bytes += sizeof(Ptr_List<graph_point*>);
 			}
+			if ((*graph_points)[i]->out) {
+				graph_point_bytes += sizeof(Ptr_List<graph_point*>);
+			}
 		}
 		bytes += graph_point_bytes;
 	}
@@ -278,10 +281,14 @@ NeuralNetwork::~NeuralNetwork(){
 	input->clear(false);
 	delete input;
 	for (int i = 0; i < graph_points->size(); i++) {
-		(*graph_points)[i]->in->clear(false);
-		(*graph_points)[i]->out->clear(false);
-		delete (*graph_points)[i]->in;
-		delete (*graph_points)[i]->out;
+		if ((*graph_points)[i]->in) {
+			(*graph_points)[i]->in->clear(false);
+			delete (*graph_points)[i]->in;
+		}
+		if ((*graph_points)[i]->out) {
+			(*graph_points)[i]->out->clear(false);
+			delete (*graph_points)[i]->out;
+		}
 		if ((*graph_points)[i]->layer_mem) {
 			clReleaseMemObject((*graph_points)[i]->layer_mem);
 		}
@@ -315,6 +322,7 @@ void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel a
 		curr->in= new Ptr_List<connection*>();
 		curr->visited = VISIT_STATE_UNSEEN;
 		curr->out = new Ptr_List<connection*>();
+		curr->layer_mem = NULL;
 	}else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
 		free(curr);
@@ -481,37 +489,28 @@ void NeuralNetwork::copy_to_input(float **data){
 	}
 	clFinish(context->getQueue());
 }
-
-inline void collect_first_connections(Ptr_List<connection**> *conn,Ptr_List<graph_point*> *input) {
+inline void collect_first_connections(OpenCL *context,Ptr_List<connection**> *conn,Ptr_List<graph_point*> *input) {
 	graph_point** curr = input->iterator();
 	while (curr != NULL) {
 		connection **conn_curr=(*curr)->out->iterator();
 		(*curr)->visited=true;
 		while (conn_curr != NULL) {
 			conn->push_back(conn_curr);
+			if (!(*conn_curr)->to->layer_mem) {
+				(*conn_curr)->to->layer_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, sizeof(float)*(*conn_curr)->to->kernel_layer_size, NULL, NULL);
+			}
 			conn_curr = (*curr)->out->next();
 		}
 		curr = input->next();
 	}
 }
-inline void step_forward(Ptr_List<connection**> *conn,OpenCL *context,cl_kernel kernels[2]) {
-	connection ***curr = conn->iterator();
-	while (curr != NULL) {
-		uint8_t visited = (**curr)->to->visited;
-		graph_point* target = (**curr)->to;
-
-		cl_kernel kernel=visited==VISIT_STATE_UNSEEN?kernels[0]:kernels[1];
-		size_t global[] = { (**curr)->connection_weights.kernel_width};
-		size_t local[] = { context->getTileSize() };
-		clEnqueueNDRangeKernel(context->getQueue(), kernel, 1, NULL, global, local, 0, NULL, NULL);
-
-		curr = conn->next();
-	}
-}
 void NeuralNetwork::forward_propagation(float * data){
 	Ptr_List<connection**> *layers = new Ptr_List<connection**>();
-	collect_first_connections(layers,input);
+	collect_first_connections(context,layers,input);
+	connection ***curr=layers->iterator();
+	while (curr != NULL) {
+		curr = layers->next();
+	}
 	cl_kernel visited[] = { vec_mat_mul,vec_mat_mul_add };
-	step_forward(layers, context,visited);
 	delete layers;
 }
