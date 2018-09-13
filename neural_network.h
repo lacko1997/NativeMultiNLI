@@ -102,10 +102,12 @@ private:
 public:
 	static void getKernels(OpenCL *context);
 	NeuralNetwork(OpenCL *context);
+	~NeuralNetwork();
 	void trainRecurrent(uint32_t input_count,RecurrentClassifiedTrainingInput *inputs);
 	void train(uint32_t input_count,ClassifiedTrainigInput *inputs);
 	uint32_t predict(float **inputs);
 
+	void getMemoryInfo();
 	void connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id, cl_kernel activation);
 	bool findGraphPointById(uint32_t id, uint32_t *loc);
 	bool findConnectionById(uint32_t id, uint32_t *loc);

@@ -20,10 +20,13 @@ public:
 	Ptr_List();
 	~Ptr_List();
 	uint32_t size() { return length; }
+
 	void push_back(T item);
 	void insert(T item, uint32_t loc);
 	void remove(int index);
-	void clear();
+	void remove(T index);
+	void clear(bool free_ptr);
+
 	T* iterator();
 	T* next();
 	T operator[](int ind);
@@ -50,7 +53,7 @@ inline Ptr_List<T>::~Ptr_List/*<T*>*/() {
 		free(del->item);
 		free(del);
 	}
-	if (end->item != NULL) {
+	if (end->item) {
 		free(end->item);
 	}
 	free(end);
@@ -110,21 +113,61 @@ inline void Ptr_List<T>::remove(int index){
 }
 
 template<typename T>
-inline void Ptr_List<T>::clear(){
+inline void Ptr_List<T>::remove(T index) {
+	curr = start;
+	while (curr != NULL) {
+		if (curr->item == index) { 
+			break;
+		}
+		curr = curr->next;
+	}
+	if (curr->next == NULL && curr->prev == NULL) {
+		free(curr->item);
+		size--;
+		return;
+	}
+	if (curr->prev == NULL) {
+		curr->next->prev = NULL;
+		start = curr->next;
+	}
+	else {
+		curr->prev->next = curr->next;
+	}
+	if (curr->next = NULL) {
+		curr->prev->next = NULL;
+		end = curr->prev;
+	}
+	else {
+		curr->next->prev = curr->prev;
+	}
+	free(curr->item);
+	free(curr);
+	size--;
+}
+
+template<typename T>
+inline void Ptr_List<T>::clear(bool free_ptr){
 	curr = start->next;
 	while (curr != end) {
 		token<T> *del = curr;
 		curr = curr->next;
-		free(del->item);
+		if (free_ptr) {
+			free(del->item);
+		}
 		free(del);
 	}
-	if (end->item != NULL) {
+	if (end->item != NULL&&free_ptr) {
 		free(end->item);
 	}
-	free(end);
-	free(start->item);
+	if (end != start) {
+		free(end);
+	}
+	if (free_ptr) {
+		free(start->item);
+	}
 	curr = start;
 	end = start;
+	start->item = NULL;
 	length = 0;
 }
 
