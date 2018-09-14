@@ -508,6 +508,16 @@ inline void step_forward(Ptr_List<connection**> *conn,OpenCL *context,cl_kernel 
 		curr = conn->next();
 	}
 }
+void NeuralNetwork::back_propagation(uint32_t index) {
+	float *correct = (float*)malloc(sizeof(float)*output->kernel_layer_size);
+	for (uint32_t i = 0; i < output->kernel_layer_size; i++) {
+		if (i == index) {
+			correct[i] = 1.0f;
+		}else {
+			correct[i] = 0.0f;
+		}
+	}
+}
 void NeuralNetwork::forward_propagation(float * data){
 	Ptr_List<connection**> *layers = new Ptr_List<connection**>();
 	collect_first_connections(layers,input);
