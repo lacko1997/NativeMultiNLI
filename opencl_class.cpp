@@ -4,7 +4,7 @@
 void OpenCL::getDeviceInfo(cl_device_id gpu) {
 	cl_ulong local_mem_size;
 	clGetDeviceInfo(gpu, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &local_mem_size, NULL);
-	int fcount = local_mem_size / sizeof(float);
+	long long int fcount = local_mem_size / sizeof(float);
 	cout << fcount << " floats" << endl;
 
 	cl_ulong global_mem_size;

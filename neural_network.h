@@ -2,11 +2,12 @@
 #include <vector>
 #include <random>
 #include "opencl_class.h"
+#include "ptr_set.h"
 #include "ptr_list.h"
 #include "common.h"
 
-typedef struct graph_point;
-typedef struct connection;
+struct graph_point;
+struct connection;
 typedef enum VisitState {
 	VISIT_STATE_UNSEEN=0,
 	VISIT_STATE_VISITED=1,
@@ -64,7 +65,7 @@ typedef struct graph_point {
 	bool operator<(graph_point other) { return other.id > id; }
 	bool operator>(graph_point other) { return other.id < id; }
 	bool operator==(graph_point other) { return other.id == id; }
-};
+}graph_point;
 
 typedef struct layer_op{
 	graph_point *output;
