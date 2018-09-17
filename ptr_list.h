@@ -129,15 +129,13 @@ inline void Ptr_List<T>::remove(T index) {
 	if (curr->prev == NULL) {
 		curr->next->prev = NULL;
 		start = curr->next;
-	}
-	else {
+	}else {
 		curr->prev->next = curr->next;
 	}
 	if (curr->next = NULL) {
 		curr->prev->next = NULL;
 		end = curr->prev;
-	}
-	else {
+	}else {
 		curr->next->prev = curr->prev;
 	}
 	free(curr->item);
@@ -181,6 +179,8 @@ template<typename T>
 inline T* Ptr_List<T>::next(){
 	if (curr != NULL) {
 		curr = curr->next;
+	}else {
+		return NULL;
 	}
 	return  &curr->item;
 }
