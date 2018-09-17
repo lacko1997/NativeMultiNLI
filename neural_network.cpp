@@ -260,11 +260,27 @@ bool NeuralNetwork::insert_graph_point(graph_point *index){
 }
 
 void NeuralNetwork::getKernels(OpenCL * context){
+	if (!context->isCreated()) {
+		cout << "OpenCL not supported. Cannot create kernels." << endl;
+		return;
+	}
 	reduce_sum = clCreateKernel(context->getProgram(), "reduce_sum", NULL);
 	softmax_pow = clCreateKernel(context->getProgram(), "softmax_pow", NULL);
 	skalar_div = clCreateKernel(context->getProgram(), "skalar_div", NULL);
 	vec_mat_mul = clCreateKernel(context->getProgram(), "vec_mat_mul", NULL);
 	vec_mat_mul_add = clCreateKernel(context->getProgram(), "vec_mat_mul_add", NULL);
+}
+
+void NeuralNetwork::releaseKernels(OpenCL *context) {
+	if (!context->isCreated()) {
+		cout << "OpenCL not supported. No kernels to release." << endl;
+		return;
+	}
+	clReleaseKernel(reduce_sum);
+	clReleaseKernel(softmax_pow);
+	clReleaseKernel(skalar_div);
+	clReleaseKernel(vec_mat_mul);
+	clReleaseKernel(vec_mat_mul_add);
 }
 
 NeuralNetwork::NeuralNetwork(OpenCL *context) {
@@ -517,19 +533,20 @@ void NeuralNetwork::forward_propagation(float * data){
 		Ptr_List<connection*> *conns = (*ptr)->out;
 		connection **curr_conn = conns->iterator();
 		while (curr_conn != NULL) {
-			cl_kernel kernel= &(*curr_conn)->to->visited==VISIT_STATE_VISITED?:;
+			cl_kernel kernel= (*curr_conn)->to->visited==VISIT_STATE_VISITED?vec_mat_mul_add:vec_mat_mul;
 			clSetKernelArg(kernel, 0, sizeof(uint32_t), &(*curr_conn)->connection_weights.height);
 			clSetKernelArg(kernel, 1, sizeof(uint32_t), &(*curr_conn)->connection_weights.kernel_width);
 			clSetKernelArg(kernel, 2, sizeof((*ptr)->layer_mem), &(*ptr)->layer_mem);
-			clSetKernelArg(kernel,3,sizeof((*curr_conn)->mat_mem),&(*curr_conn)->mat_mem);
+			clSetKernelArg(kernel, 3, sizeof((*curr_conn)->mat_mem),&(*curr_conn)->mat_mem);
 			clSetKernelArg(kernel, 4, sizeof((*curr_conn)->to->layer_mem), &(*curr_conn)->to->layer_mem);
 			uint32_t globals[] = { (*curr_conn)->connection_weights.kernel_width };
 			uint32_t locals[] = { 32 };
 			clEnqueueNDRangeKernel(context->getQueue(), kernel, 1, NULL, globals, locals, 0, NULL, NULL);
-			curr_conn = conns->iterator();
+			(*curr_conn)->to->visited = VISIT_STATE_VISITED;
+			next_layers->insert((*curr_conn)->to);
+			curr_conn = conns->next();
 		}
 		clFinish(context->getQueue());
 	}
-	cl_kernel visited[] = { vec_mat_mul,vec_mat_mul_add };
 	delete next_layers;
 }

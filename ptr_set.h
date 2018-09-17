@@ -114,7 +114,7 @@ inline T * Ptr_Set<T>::next(){
 	}else {
 		return NULL;
 	}
-	return cur->item;
+	return curr->item;
 }
 
 template<typename T>
