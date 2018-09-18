@@ -39,6 +39,7 @@ cl_kernel NeuralNetwork::reduce_sum;
 cl_kernel NeuralNetwork::softmax_pow;
 cl_kernel NeuralNetwork::skalar_div;
 cl_kernel NeuralNetwork::vec_mat_mul;
+cl_kernel NeuralNetwork::add;
 cl_kernel NeuralNetwork::vec_mat_mul_add;
 
 void NeuralNetwork::softmax() {
@@ -114,14 +115,16 @@ void NeuralNetwork::getMemoryInfo(){
 	}
 }
 
-void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl_kernel activation){
+void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl_kernel *activation){
 	uint32_t loc_src, loc_dst;
 	if (findGraphPointById(src, &loc_src)&&findGraphPointById(dst,&loc_dst)) {
 		graph_point **input_layer=input->iterator();
+		//Output cannot be source
 		if (output->id == src) {
 			cout << "[Source] Graph point with id " << src << "is an output layer. It cannot be the source of a connection." << endl;
 			return;
 		}
+		//Input cannot be destination
 		while (input_layer) {
 			if ((*input_layer)->id == dst) {
 				cout << "[Destination] Graph point with id " << dst << " is an input layer. It cannot be the destination of a connection." << endl;
@@ -129,18 +132,26 @@ void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl
 			}
 			input_layer=input->next();
 		}
+		//Activation function is needed
+		if (activation == NULL) {
+			cout << "[Connection] Activation function is necessary." << endl;
+			return;
+		}
 		connection *conn = (connection*)malloc(sizeof(float));
 		conn->id = conn_id;
+		//Connection id must be unique.
 		if (!insert_connection(conn)) {
 			free(conn);
 			cout << "connection with id: " << conn->id << " already exsist.";
 			return;
 		}
+		//setting the matrix size
 		conn->from = (*graph_points)[loc_src];
 		conn->to = (*graph_points)[loc_dst];
 		conn->connection_weights.width = conn->to->layer_size;
 		conn->connection_weights.height = conn->from->layer_size;
 
+		//Allocating space for the matrices.
 		uint32_t mWidth = conn->to->layer_size;
 		uint32_t remainder = mWidth % context->getTileSize();
 		if (remainder != 0) {
@@ -163,6 +174,7 @@ void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl
 				}
 			}
 		}
+		conn->visited = false;
 	}else {
 		if (!findGraphPointById(src, &loc_src)) {
 			cout << "[Source] Graph point with id " << src << " does not exsist." << endl;
@@ -269,6 +281,7 @@ void NeuralNetwork::getKernels(OpenCL * context){
 	skalar_div = clCreateKernel(context->getProgram(), "skalar_div", NULL);
 	vec_mat_mul = clCreateKernel(context->getProgram(), "vec_mat_mul", NULL);
 	vec_mat_mul_add = clCreateKernel(context->getProgram(), "vec_mat_mul_add", NULL);
+	add = clCreateKernel(context->getProgram(), "add", NULL);
 }
 
 void NeuralNetwork::releaseKernels(OpenCL *context) {
@@ -281,6 +294,7 @@ void NeuralNetwork::releaseKernels(OpenCL *context) {
 	clReleaseKernel(skalar_div);
 	clReleaseKernel(vec_mat_mul);
 	clReleaseKernel(vec_mat_mul_add);
+	clReleaseKernel(add);
 }
 
 NeuralNetwork::NeuralNetwork(OpenCL *context) {
@@ -337,7 +351,7 @@ void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel a
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->in= new Ptr_List<connection*>();
-		curr->visited = VISIT_STATE_UNSEEN;
+		curr->visited = false;
 		curr->out = new Ptr_List<connection*>();
 		curr->layer_mem = NULL;
 	}else {
@@ -356,7 +370,7 @@ void NeuralNetwork::addInputLayer(uint32_t layer_id, uint32_t layer_size){
 	if (insert_graph_point(curr)) {
 		curr->layer_size = layer_size;
 		curr->out = new Ptr_List<connection*>();
-		curr->visited = VISIT_STATE_FINISHED;
+		curr->visited =true;
 		curr->layer_mem=clCreateBuffer(context->getContext(),CL_MEM_READ_WRITE,sizeof(float)*curr->kernel_layer_size,NULL,NULL);
 		input->push_back(curr);
 	} else {
@@ -524,6 +538,25 @@ void NeuralNetwork::back_propagation(uint32_t index) {
 		}
 	}
 }
+inline void weight_mul(OpenCL *context,cl_kernel kernel, uint32_t *dimensions,cl_mem *buffers,uint32_t* globals,uint32_t *locals) {
+	clSetKernelArg(kernel, 0, sizeof(uint32_t), &dimensions[0]);
+	clSetKernelArg(kernel, 1, sizeof(uint32_t), &dimensions[1]);
+	clSetKernelArg(kernel, 2, sizeof(buffers[0]), &buffers[0]);
+	clSetKernelArg(kernel, 3, sizeof(buffers[2]), &buffers[2]);
+	clSetKernelArg(kernel, 4, sizeof(buffers[1]), &buffers[1]);
+	clEnqueueNDRangeKernel(context->getQueue(), kernel, 1, NULL, globals, locals, 0, NULL, NULL);
+}
+inline void add_biases(OpenCL *context,cl_kernel add, uint32_t *dimensions,cl_mem *buffers,uint32_t* globals) {
+	clSetKernelArg(add, 0, sizeof(buffers[3]), &buffers[1]);
+	clSetKernelArg(add, 1, sizeof(buffers[1]), &buffers[1]);
+	clSetKernelArg(add, 2, sizeof(buffers[1]), &buffers[1]);
+	clEnqueueNDRangeKernel(context->getQueue(), add, 1, NULL, globals, NULL, 0, NULL, NULL);
+}
+inline void apply_activation(OpenCL *context,cl_kernel activation,cl_mem *buffers, uint32_t *globals) {
+	clSetKernelArg(activation, 0, sizeof(buffers[1]), &buffers[1]);
+	clSetKernelArg(activation, 1, sizeof(buffers[1]), &buffers[1]);
+	clEnqueueNDRangeKernel(context->getQueue(), activation, 1, NULL, globals, NULL, 0, NULL, NULL);
+}
 void NeuralNetwork::forward_propagation(float * data){
 	Ptr_Set<graph_point*> *curr_layers = new Ptr_Set<graph_point*>();
 	Ptr_Set<graph_point*> *next_layers = new Ptr_Set<graph_point*>();
@@ -532,19 +565,49 @@ void NeuralNetwork::forward_propagation(float * data){
 	while (ptr != NULL) {
 		Ptr_List<connection*> *conns = (*ptr)->out;
 		connection **curr_conn = conns->iterator();
-		while (curr_conn != NULL) {
-			cl_kernel kernel= (*curr_conn)->to->visited==VISIT_STATE_VISITED?vec_mat_mul_add:vec_mat_mul;
-			clSetKernelArg(kernel, 0, sizeof(uint32_t), &(*curr_conn)->connection_weights.height);
-			clSetKernelArg(kernel, 1, sizeof(uint32_t), &(*curr_conn)->connection_weights.kernel_width);
-			clSetKernelArg(kernel, 2, sizeof((*ptr)->layer_mem), &(*ptr)->layer_mem);
-			clSetKernelArg(kernel, 3, sizeof((*curr_conn)->mat_mem),&(*curr_conn)->mat_mem);
-			clSetKernelArg(kernel, 4, sizeof((*curr_conn)->to->layer_mem), &(*curr_conn)->to->layer_mem);
-			uint32_t globals[] = { (*curr_conn)->connection_weights.kernel_width };
-			uint32_t locals[] = { 32 };
-			clEnqueueNDRangeKernel(context->getQueue(), kernel, 1, NULL, globals, locals, 0, NULL, NULL);
-			(*curr_conn)->to->visited = VISIT_STATE_VISITED;
-			next_layers->insert((*curr_conn)->to);
-			curr_conn = conns->next();
+		
+		bool skip=false;
+		
+		if ((*ptr)->in && (*ptr)->in->size() > 0) {
+			connection **in_conn = (*ptr)->in->iterator();
+			while (in_conn != NULL) {
+				if ((*in_conn)->visited) {
+					skip = true;
+				}
+				in_conn = (*ptr)->in->next;
+			}
+		}
+		
+		if (!skip) {
+			while (curr_conn != NULL) {
+				//Declaring, and initializing some variables for the iteration.
+				cl_kernel kernel = (*curr_conn)->to->visited ? vec_mat_mul_add : vec_mat_mul;
+				
+				uint32_t dims[2] = { (*curr_conn)->connection_weights.kernel_width,(*curr_conn)->connection_weights.height };
+				uint32_t globals[1] = { dims[0] };
+				uint32_t locals[1] = { 32 };
+				
+				cl_mem buffers[4] = {
+					(*ptr)->layer_mem,
+					(*curr_conn)->to->layer_mem,
+					(*curr_conn)->mat_mem,
+					(*curr_conn)->bias_mem
+				};
+				//multiplying with weights
+				weight_mul(context, kernel, dims, buffers, globals, locals);
+				//adding biases
+				add_biases(context, add, dims, buffers,globals);
+				//applying activation function
+				apply_activation(context, (*curr_conn)->activation, buffers,globals);
+				//collecting the layers for the next iteration
+				(*curr_conn)->visited = true;
+				next_layers->insert((*curr_conn)->to);
+				//go to the next connection
+				curr_conn = conns->next();
+			}
+		}
+		else {
+			next_layers->insert(*ptr);
 		}
 		clFinish(context->getQueue());
 	}

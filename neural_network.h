@@ -8,20 +8,21 @@
 
 struct graph_point;
 struct connection;
-typedef enum VisitState {
+/*typedef enum VisitState {
 	VISIT_STATE_UNSEEN=0,
 	VISIT_STATE_VISITED=1,
 	VISIT_STATE_FINISHED=2
-}VisitState;
+}VisitState;*/
 typedef struct connection {
 	uint32_t id;
-	cl_mem mat_mem;
-	cl_mem bias_mem;
+	bool visited;
 	
 	fvector biases;
 	matrix connection_weights;
 
 	cl_kernel activation;
+	cl_mem mat_mem;
+	cl_mem bias_mem;
 
 	graph_point* from;
 	graph_point* to;
@@ -50,13 +51,11 @@ typedef struct RecurrentClassifiedTrainingInput {
 
 typedef struct graph_point {
 	uint32_t id;
-
-	uint8_t visited;
+	bool visited;
 	uint16_t recurrent;
 
 	uint32_t kernel_layer_size;
 	int32_t layer_size;
-
 	cl_mem layer_mem;
 
 	Ptr_List<connection*> *out;
@@ -79,6 +78,7 @@ private:
 	static cl_kernel skalar_div;
 	static cl_kernel vec_mat_mul;
 	static cl_kernel vec_mat_mul_add;
+	static cl_kernel add;
 
 	Ptr_List<graph_point*> *input;
 	graph_point *output = NULL;
@@ -103,6 +103,8 @@ private:
 	void back_propagation(uint32_t index);
 public:
 	static void getKernels(OpenCL *context);
+	static void releaseKernels(OpenCL *context);
+
 	NeuralNetwork(OpenCL *context);
 	~NeuralNetwork();
 	void trainRecurrent(uint32_t input_count,RecurrentClassifiedTrainingInput *inputs);
@@ -110,7 +112,7 @@ public:
 	uint32_t predict(float **inputs);
 
 	void getMemoryInfo();
-	void connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id, cl_kernel activation);
+	void connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id, cl_kernel *activation);
 	bool findGraphPointById(uint32_t id, uint32_t *loc);
 	bool findConnectionById(uint32_t id, uint32_t *loc);
 	void setOutput(uint32_t layer_id,uint32_t layer_size);
