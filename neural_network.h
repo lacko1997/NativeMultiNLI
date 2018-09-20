@@ -71,6 +71,7 @@ typedef struct layer_op{
 	Ptr_List<graph_point*> *inputs;
 	graph_point *(*operation)(Ptr_List<graph_point>);
 }layer_op;
+
 class NeuralNetwork {
 private:
 	static cl_kernel reduce_sum;
@@ -79,6 +80,7 @@ private:
 	static cl_kernel vec_mat_mul;
 	static cl_kernel vec_mat_mul_add;
 	static cl_kernel add;
+	static cl_kernel log_;
 
 	Ptr_List<graph_point*> *input;
 	graph_point *output = NULL;
@@ -100,6 +102,7 @@ private:
 	void init();
 	void copy_to_input(float** data);
 	void forward_propagation(float* data);
+	void loss();
 	void back_propagation(uint32_t index);
 public:
 	static void getKernels(OpenCL *context);

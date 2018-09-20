@@ -13,7 +13,7 @@ struct unique_token {
 template <typename T>
 class Ptr_Set{
 private:
-	uint32_t size;
+	uint32_t count;
 
 	unique_token<T> *start;
 	unique_token<T> *curr;
@@ -25,7 +25,9 @@ public:
 	void remove(T item);
 	T* iterator();
 	T* next();
-	void clear();
+	T head() { return start->item; }
+	uint32_t size() { return count; }
+	void clear(bool free_ptrs);
 };
 
 template<typename T>
@@ -37,19 +39,20 @@ inline Ptr_Set<T>::Ptr_Set(){
 	start->prev = NULL;
 	start->next = NULL;
 
-	size = 0;
+	count = 0;
 }
 
 template<typename T>
 inline Ptr_Set<T>::~Ptr_Set(){
-	clear();
+	clear(true);
 	free(start);
 }
 
 template<typename T>
 inline bool Ptr_Set<T>::insert(T item){
-	if (size == 0) {
+	if (count == 0) {
 		start->item = item;
+		count++;
 		return true;
 	}else {
 		curr = start;
@@ -67,6 +70,8 @@ inline bool Ptr_Set<T>::insert(T item){
 		curr->next = NULL;
 
 		end = curr;
+
+		count++;
 		return true;
 	}
 }
@@ -118,15 +123,19 @@ inline T * Ptr_Set<T>::next(){
 }
 
 template<typename T>
-inline void Ptr_Set<T>::clear(){
+inline void Ptr_Set<T>::clear(bool free_ptrs){
 	curr = start;
-	size = 0;
+	count = 0;
 	while (curr != NULL) {
 		if (curr->next = NULL) {
-			free(curr->item);
+			if (free_ptrs) {
+				free(curr->item);
+			}
 			break;
 		}else {
-			free(curr->item);
+			if (free_ptrs) {
+				free(curr->item);
+			}
 			unique_token<T> *del = curr;
 			curr = curr->next;
 			free(del);
