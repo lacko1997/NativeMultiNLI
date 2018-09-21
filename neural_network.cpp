@@ -130,11 +130,11 @@ void NeuralNetwork::getMemoryInfo(){
 			connection_bytes += (*connections)[i]->biases.kernel_length * sizeof(float);
 			connection_bytes += width * height * sizeof(float);
 		}
-		cout << "The size of the connections in bytes: " << connection_bytes << endl;
+		cout <<  "The size of the connections in bytes: " << connection_bytes << endl;
 		bytes += connection_bytes;
 	}
 
-	cout << "Overall size in bytes: " << bytes << endl;
+	cout << endl << "Overall size in bytes: " << bytes << endl;
 }
 
 void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl_kernel *activation){
@@ -249,7 +249,9 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		}
 		output->kernel_layer_size = layer_size;
 		output->in = new Ptr_List<connection*>();
+		output->out = NULL;
 		output->visited = false;
+		output->layer_mem = NULL;
 	}else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
 		free(output);
@@ -373,8 +375,8 @@ void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel a
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->in= new Ptr_List<connection*>();
-		curr->visited = false;
 		curr->out = new Ptr_List<connection*>();
+		curr->visited = false;
 		curr->layer_mem = NULL;
 	}else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
@@ -391,6 +393,7 @@ void NeuralNetwork::addInputLayer(uint32_t layer_id, uint32_t layer_size){
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->layer_size = layer_size;
+		curr->in = NULL;
 		curr->out = new Ptr_List<connection*>();
 		curr->visited =true;
 		curr->layer_mem=clCreateBuffer(context->getContext(),CL_MEM_READ_WRITE,sizeof(float)*curr->kernel_layer_size,NULL,NULL);
