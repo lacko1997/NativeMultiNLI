@@ -309,6 +309,7 @@ void NeuralNetwork::getKernels(OpenCL * context){
 	vec_mat_mul = clCreateKernel(context->getProgram(), "vec_mat_mul", NULL);
 	vec_mat_mul_add = clCreateKernel(context->getProgram(), "vec_mat_mul_add", NULL);
 	add = clCreateKernel(context->getProgram(), "add", NULL);
+	cross_entropy = clCreateKernel(context->getProgram, "cross_entropy", NULL);
 }
 
 void NeuralNetwork::releaseKernels(OpenCL *context) {
@@ -322,6 +323,7 @@ void NeuralNetwork::releaseKernels(OpenCL *context) {
 	clReleaseKernel(vec_mat_mul);
 	clReleaseKernel(vec_mat_mul_add);
 	clReleaseKernel(add);
+	clReleaseKernel(cross_entropy);
 }
 
 NeuralNetwork::NeuralNetwork(OpenCL *context) {
@@ -538,6 +540,7 @@ void NeuralNetwork::init() {
 		};
 		clEnqueueWriteBuffer(context->getQueue(), (*connections)[i]->bias_mem, false, 0, sizeof(float)*(currv->kernel_length), currv->data, 0, NULL, NULL);
 	}
+	clFinish(context->getQueue());
 }
 void NeuralNetwork::copy_to_input(float **data){
 	graph_point **curr = input->iterator();
@@ -671,7 +674,7 @@ void NeuralNetwork::forward_propagation(float * data){
 }
 
 void NeuralNetwork::loss(uint32_t index){
-	result_mem
+	
 }
 
 /*float *result = (float*)malloc(sizeof(float)*size[0]);

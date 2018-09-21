@@ -1,5 +1,10 @@
 #define E 2.718281828f
-
+__kernel void cross_entropy(__global float* correct,
+							__global float* result,
+							__global float* output){
+	int n=get_global_id(0);
+	output[n]=correct[n]*log(result[n]);
+}
 __kernel void vec_mat_mul(	const int L,
 							const int M,
 							__global float *layer,
