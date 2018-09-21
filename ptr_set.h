@@ -21,8 +21,9 @@ private:
 public:
 	Ptr_Set();
 	~Ptr_Set();
+
 	bool insert(T item);
-	void remove(T item);
+	void remove(T item,bool del);
 	T* iterator();
 	T* next();
 	T head() { return start->item; }
@@ -77,28 +78,35 @@ inline bool Ptr_Set<T>::insert(T item){
 }
 
 template<typename T>
-inline void Ptr_Set<T>::remove(T item){
+inline void Ptr_Set<T>::remove(T item, bool del){
 	curr = start;
 	while (curr != NULL) {
 		if (curr->item == item) {
-			free(curr->item);
-			if (size == 1) {
-				size--;
+			if (del) {
+				free(curr->item);
+			}
+
+			if (count == 1) {
+				count--;
+				curr->item = NULL;
 				return;
 			}
+			//If we found the item at the end.
 			if (!curr->next) {
 				curr->prev->next = NULL;
 				curr = end;
 			}else {
 				curr->prev->next = curr->next;
 			}
+			//If we found the item at the start.
 			if (!curr->prev) {
 				curr->next->prev = NULL;
 				curr = start;
 			}else {
 				curr->next->prev = curr->prev;
 			}
-			size--;
+
+			count--;
 			free(curr);
 			return;
 		}
