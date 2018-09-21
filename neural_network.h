@@ -102,7 +102,7 @@ private:
 	void init();
 	void copy_to_input(float** data);
 	void forward_propagation(float* data);
-	void loss();
+	void loss(uint32_t index);
 	void back_propagation(uint32_t index);
 public:
 	static void getKernels(OpenCL *context);
