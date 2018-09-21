@@ -1,5 +1,13 @@
 #include "neural_network.h"
 
+cl_kernel NeuralNetwork::reduce_sum;
+cl_kernel NeuralNetwork::softmax_pow;
+cl_kernel NeuralNetwork::skalar_div;
+cl_kernel NeuralNetwork::vec_mat_mul;
+cl_kernel NeuralNetwork::add;
+cl_kernel NeuralNetwork::vec_mat_mul_add;
+cl_kernel NeuralNetwork::cross_entropy;
+
 inline void powOfE(OpenCL *context, cl_kernel softmax_pow, cl_mem output_mem, graph_point *output, uint32_t *size) {
 	float sum = 0.0f;
 	//clEnqueueWriteBuffer(context->getQueue(), output_mem, false, 0, size[0] * sizeof(float), output_data, 0, NULL, NULL);
@@ -40,12 +48,6 @@ inline void divide(OpenCL *context,float *sum,cl_kernel skalar_div,cl_mem layer_
 	clSetKernelArg(skalar_div, 2, sizeof(layer_mem), &layer_mem);
 	clEnqueueNDRangeKernel(context->getQueue(), skalar_div, 1, NULL, size, NULL, 0, NULL, NULL);
 }
-cl_kernel NeuralNetwork::reduce_sum;
-cl_kernel NeuralNetwork::softmax_pow;
-cl_kernel NeuralNetwork::skalar_div;
-cl_kernel NeuralNetwork::vec_mat_mul;
-cl_kernel NeuralNetwork::add;
-cl_kernel NeuralNetwork::vec_mat_mul_add;
 
 void NeuralNetwork::softmax() {
 	size_t size[] = { output->kernel_layer_size };
