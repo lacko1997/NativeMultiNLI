@@ -55,7 +55,7 @@ void NeuralNetwork::softmax() {
 
 	//Sum the elements
 	float sum[1];
-	sum_elements(context, reduce_sum, size, sizel, output_mem, sum);
+	sum_elements(context, reduce_sum, size, sizel, result_mem, sum);
 	
 	//divide the elements with the sum
 	size[0] = output->kernel_layer_size;
@@ -240,6 +240,11 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		cout << "An output layer was already set." << endl;
 		return;
 	}
+	output_data = (float*)malloc(sizeof(float)*layer_size);
+	for (int i = 0; i < layer_size; i++) {
+		output_data[0] = 0.0f;
+	}
+
 	output = (graph_point*)malloc(sizeof(graph_point));
 	output->id = layer_id;
 	if (insert_graph_point(output)) {
@@ -254,8 +259,6 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
 		free(output);
 	};
-	//cout << endl;
-	//softmax();
 }
 
 bool NeuralNetwork::insert_graph_point(graph_point *index){
@@ -328,6 +331,7 @@ NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	input = new Ptr_List<graph_point*>();
 	graph_points =new vector<graph_point*>();
 	connections = new vector<connection*>();
+	output_data = NULL;
 	output = NULL;
 }
 NeuralNetwork::~NeuralNetwork(){
@@ -356,8 +360,8 @@ NeuralNetwork::~NeuralNetwork(){
 		free((*connections)[i]);
 	}
 	delete connections;
-	if (output_mem) {
-		clReleaseMemObject(output_mem);
+	if (result_mem) {
+		clReleaseMemObject(result_mem);
 	}
 	if (output_data) {
 		free(output_data);
@@ -645,15 +649,27 @@ void NeuralNetwork::forward_propagation(float * data){
 	
 	collect_first_layers(input,curr_layers);
 
+	bool input = true;
+
 	cl_kernel kernels[] = { vec_mat_mul,vec_mat_mul_add,add };
 	while (curr_layers->size() == 1 && curr_layers->head() == output) {
 		iterate(context, curr_layers, next_layers, kernels);
+		if (input) {
+			input = false;
+		}else {
+			graph_point **ptr=curr_layers->iterator();
+			while (ptr != NULL) {
+				clReleaseMemObject((*ptr)->layer_mem);
+				ptr = curr_layers->next();
+			}
+		}
 		swap(&curr_layers, &next_layers);
 	}
 	delete next_layers;
 }
 
-void NeuralNetwork::loss(){
+void NeuralNetwork::loss(uint32_t index){
+	result_mem
 }
 
 /*float *result = (float*)malloc(sizeof(float)*size[0]);
