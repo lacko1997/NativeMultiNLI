@@ -27,8 +27,7 @@ inline void sum_elements(OpenCL *context,cl_kernel reduce_sum,uint32_t *size,uin
 		clSetKernelArg(reduce_sum, 2, sizeof(memory), &memory);
 		if (size[0] >= sizel[0]) {
 			clEnqueueNDRangeKernel(context->getQueue(), reduce_sum, 1, NULL, size, sizel, 0, NULL, NULL);
-		}
-		else {
+		}else {
 			clEnqueueNDRangeKernel(context->getQueue(), reduce_sum, 1, NULL, sizel, sizel, 0, NULL, NULL);
 		}
 		size[0] = size[0] / 2;
@@ -97,6 +96,11 @@ void NeuralNetwork::getMemoryInfo(){
 	//NeuralNetwork size
 	uint32_t bytes = sizeof(NeuralNetwork);
 	cout << "NeuralNetwork class size: " << sizeof(NeuralNetwork) << endl;
+	//Allocated memory for the output
+	if (output) {
+		cout <<"The size of the output memory in bytes: "<< output->kernel_layer_size * sizeof(float) << endl;
+		bytes+= output->kernel_layer_size * sizeof(float);
+	}
 	//Allocated Memory for input pointers;
 	if (input) {
 		uint32_t input_sz = input->size() * sizeof(graph_point*) + sizeof(Ptr_List<graph_point*>);
@@ -242,18 +246,19 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		cout << "An output layer was already set." << endl;
 		return;
 	}
-	output_data = (float*)malloc(sizeof(float)*layer_size);
-	for (int i = 0; i < layer_size; i++) {
-		output_data[0] = 0.0f;
-	}
-
 	output = (graph_point*)malloc(sizeof(graph_point));
 	output->id = layer_id;
 	if (insert_graph_point(output)) {
 		output->layer_size=layer_size;
-		if (layer_size % 32 != 0) {
-			layer_size += (32 - layer_size % 32);
+		uint32_t lsize=context->getTileSize();
+		if (layer_size % lsize != 0) {
+			layer_size += (lsize -layer_size % lsize);
 		}
+		result_data = (float*)malloc(sizeof(float)*layer_size);
+		for (int i = 0; i < layer_size; i++) {
+			result_data[0] = 0.0f;
+		}
+
 		output->kernel_layer_size = layer_size;
 		output->in = new Ptr_List<connection*>();
 		output->out = NULL;
@@ -311,6 +316,7 @@ void NeuralNetwork::getKernels(OpenCL * context){
 	vec_mat_mul = clCreateKernel(context->getProgram(), "vec_mat_mul", NULL);
 	vec_mat_mul_add = clCreateKernel(context->getProgram(), "vec_mat_mul_add", NULL);
 	add = clCreateKernel(context->getProgram(), "add", NULL);
+	cross_entropy = clCreateKernel(context->getProgram(), "cross_entropy", NULL);
 }
 
 void NeuralNetwork::releaseKernels(OpenCL *context) {
@@ -324,6 +330,7 @@ void NeuralNetwork::releaseKernels(OpenCL *context) {
 	clReleaseKernel(vec_mat_mul);
 	clReleaseKernel(vec_mat_mul_add);
 	clReleaseKernel(add);
+	clReleaseKernel(cross_entropy);
 }
 
 NeuralNetwork::NeuralNetwork(OpenCL *context) {
@@ -335,7 +342,7 @@ NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	input = new Ptr_List<graph_point*>();
 	graph_points =new vector<graph_point*>();
 	connections = new vector<connection*>();
-	output_data = NULL;
+	result_data = NULL;
 	output = NULL;
 }
 NeuralNetwork::~NeuralNetwork(){
@@ -367,8 +374,8 @@ NeuralNetwork::~NeuralNetwork(){
 	if (result_mem) {
 		clReleaseMemObject(result_mem);
 	}
-	if (output_data) {
-		free(output_data);
+	if (result_data) {
+		free(result_data);
 	}
 };
 
@@ -541,6 +548,7 @@ void NeuralNetwork::init() {
 		};
 		clEnqueueWriteBuffer(context->getQueue(), (*connections)[i]->bias_mem, false, 0, sizeof(float)*(currv->kernel_length), currv->data, 0, NULL, NULL);
 	}
+	clFinish(context->getQueue());
 }
 void NeuralNetwork::copy_to_input(float **data){
 	graph_point **curr = input->iterator();
@@ -612,10 +620,16 @@ inline void iterate(OpenCL *context,Ptr_Set<graph_point*> *curr_layers,Ptr_Set<g
 				//Declaring, and initializing some variables for the iteration.
 				cl_kernel kernel = (*curr_conn)->to->visited ? kernels[1] : kernels[0];
 
-				uint32_t dims[2] = { (*curr_conn)->connection_weights.kernel_width,(*curr_conn)->connection_weights.height };
-				uint32_t globals[1] = { dims[0] };
+				uint32_t dims[2] = { 
+					(*curr_conn)->connection_weights.kernel_width,
+					(*curr_conn)->connection_weights.height
+				};
+				uint32_t kernel_globals[1] = { dims[0] };
+				uint32_t globals[1] = { (*curr_conn)->biases.length };
 				uint32_t locals[1] = { 32 };
 
+				(*curr_conn)->to->layer_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, (*curr_conn)->to->kernel_layer_size, NULL, NULL);
+				
 				cl_mem buffers[4] = {
 					(*ptr)->layer_mem,
 					(*curr_conn)->to->layer_mem,
@@ -623,7 +637,7 @@ inline void iterate(OpenCL *context,Ptr_Set<graph_point*> *curr_layers,Ptr_Set<g
 					(*curr_conn)->bias_mem
 				};
 				//multiplying with weights
-				weight_mul(context, kernel, dims, buffers, globals, locals);
+				weight_mul(context, kernel, dims, buffers, kernel_globals, locals);
 				//adding biases
 				add_biases(context, kernels[2], dims, buffers, globals);
 				//applying activation function
@@ -636,18 +650,30 @@ inline void iterate(OpenCL *context,Ptr_Set<graph_point*> *curr_layers,Ptr_Set<g
 			}
 		}
 		else {
+			curr_layers->remove(*ptr,false);
 			next_layers->insert(*ptr);
 		}
 		clFinish(context->getQueue());
 	}
 }
-void swap(Ptr_Set<graph_point*> **curr, Ptr_Set<graph_point*> **next) {
+inline void swap(Ptr_Set<graph_point*> **curr, Ptr_Set<graph_point*> **next) {
 	(*curr)->clear(false);
 	delete *curr;
 	*curr = *next;
 	*next = new Ptr_Set<graph_point*>();
 }
 
+inline void clean_gpu_memory(bool *input,Ptr_Set<graph_point*> *curr_layers) {
+	if (*input) {
+		*input = false;
+	}else {
+		graph_point **ptr = curr_layers->iterator();
+		while (ptr != NULL) {
+			clReleaseMemObject((*ptr)->layer_mem);
+			ptr = curr_layers->next();
+		}
+	}
+}
 void NeuralNetwork::forward_propagation(float * data){
 	Ptr_Set<graph_point*> *curr_layers = new Ptr_Set<graph_point*>();
 	Ptr_Set<graph_point*> *next_layers = new Ptr_Set<graph_point*>();
@@ -659,22 +685,24 @@ void NeuralNetwork::forward_propagation(float * data){
 	cl_kernel kernels[] = { vec_mat_mul,vec_mat_mul_add,add };
 	while (curr_layers->size() == 1 && curr_layers->head() == output) {
 		iterate(context, curr_layers, next_layers, kernels);
-		if (input) {
-			input = false;
-		}else {
-			graph_point **ptr=curr_layers->iterator();
-			while (ptr != NULL) {
-				clReleaseMemObject((*ptr)->layer_mem);
-				ptr = curr_layers->next();
-			}
-		}
+		clean_gpu_memory(&input, curr_layers);
 		swap(&curr_layers, &next_layers);
 	}
 	delete next_layers;
 }
-
+inline void loss_kernel(OpenCL *context,cl_kernel cross_ent,cl_mem *buffers,uint32_t* globals) {
+	clSetKernelArg(cross_ent, 0, sizeof(buffers[0]), &buffers[0]);
+	clSetKernelArg(cross_ent, 1, sizeof(buffers[1]), &buffers[1]);
+	clSetKernelArg(cross_ent, 2, sizeof(buffers[0]), &buffers[0]);
+	clEnqueueNDRangeKernel(context->getQueue(), cross_ent, 1, NULL, globals, NULL, 0, NULL, NULL);
+	clFinish(context->getQueue());
+}
 void NeuralNetwork::loss(uint32_t index){
-	result_mem
+	uint32_t locals[] = { context->getTileSize() };
+	float loss[1];
+	sum_elements(context, reduce_sum, &output->kernel_layer_size, locals, result_mem, loss);
+	cout <<"loss: "<<loss[0] << endl;
+	last_index = index;
 }
 
 /*float *result = (float*)malloc(sizeof(float)*size[0]);

@@ -80,7 +80,7 @@ private:
 	static cl_kernel vec_mat_mul;
 	static cl_kernel vec_mat_mul_add;
 	static cl_kernel add;
-	static cl_kernel log_;
+	static cl_kernel cross_entropy;
 
 	Ptr_List<graph_point*> *input;
 	graph_point *output = NULL;
@@ -89,8 +89,9 @@ private:
 	vector<connection*> *connections;
 	OpenCL *context;
 
-	float* output_data;
-	cl_mem output_mem;
+	float* result_data;
+	cl_mem result_mem;
+	uint32_t last_index;
 
 	void softmax();
 	bool find_graph_point(graph_point *index,uint32_t *loc);
