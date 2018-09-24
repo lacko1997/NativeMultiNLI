@@ -5,6 +5,21 @@ __kernel void cross_entropy(__global float* correct,
 	int n=get_global_id(0);
 	output[n]=correct[n]*log(result[n]);
 }
+
+__kernel void transpose (const int L,
+						 const int M,
+						 float *matrix){
+	int lx=get_local_id(0);
+	int ly=get_local_id(1);
+	int x=get_global_id(0);
+	int y=get_global_id(1);
+	
+	__local float buffer[WPT][WPT];
+	if(x<L&&y<M){
+		buffer[lx][ly]
+	}
+}
+
 __kernel void vec_mat_mul(	const int L,
 							const int M,
 							__global float *layer,
@@ -144,13 +159,11 @@ __kernel void relu(__global float* in,__global float *out){
 		out[n]=in[n];
 	}
 }
-
 __kernel void tanh_deriv(__global float *in,__global float *out){
 	int n=get_global_id(0);
 	float cosh_val=cosh(in[n]);
 	out[n]=1/cosh_val*cosh_val;
 }
-
 __kernel void sigmoid_deriv(__global float *in,__global float *out){
 	int n=get_global_id(0);
 	out[n]=pow(E,-in[n])/pow((pow(E,-in[n])+1),2);

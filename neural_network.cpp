@@ -94,6 +94,7 @@ bool NeuralNetwork::find_graph_point(graph_point *index, uint32_t *loc){
 
 void NeuralNetwork::getMemoryInfo(){
 	//NeuralNetwork size
+	cout << __PRETTY_FUNCTION__ << endl;
 	uint32_t bytes = sizeof(NeuralNetwork);
 	cout << "NeuralNetwork class size: " << sizeof(NeuralNetwork) << endl;
 	//Allocated memory for the output
@@ -121,7 +122,7 @@ void NeuralNetwork::getMemoryInfo(){
 			}
 			if ((*graph_points)[i]->out) {
 				graph_point_bytes += sizeof(Ptr_List<connection*>);
-				graph_point_bytes += sizeof(connection*)*(*graph_points)[i]->out->size();
+			graph_point_bytes += sizeof(connection*)*(*graph_points)[i]->out->size();
 			}
 		}
 		cout << "The size of the graph points in the neural network in bytes: " << graph_point_bytes<<endl;
