@@ -91,7 +91,8 @@ private:
 
 	float* result_data;
 	cl_mem result_mem;
-	uint32_t last_index;
+	float loss_value;
+	int32_t last_index;
 
 	void softmax();
 	bool find_graph_point(graph_point *index,uint32_t *loc);
