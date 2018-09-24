@@ -95,7 +95,7 @@ bool NeuralNetwork::find_graph_point(graph_point *index, uint32_t *loc){
 void NeuralNetwork::getMemoryInfo(){
 	//NeuralNetwork size
 	uint32_t bytes = sizeof(NeuralNetwork);
-	cout << "NeuralNetwork class size: " << sizeof(NeuralNetwork) << endl;
+	cout << "NeuralNetwork class size: " << bytes << endl;
 	//Allocated memory for the output
 	if (output) {
 		cout <<"The size of the output memory in bytes: "<< output->kernel_layer_size * sizeof(float) << endl;
@@ -344,6 +344,7 @@ NeuralNetwork::NeuralNetwork(OpenCL *context) {
 	connections = new vector<connection*>();
 	result_data = NULL;
 	output = NULL;
+	last_index = -1;
 }
 NeuralNetwork::~NeuralNetwork(){
 	input->clear(false);
@@ -569,13 +570,7 @@ inline void collect_first_layers(Ptr_List<graph_point*> *input,Ptr_Set<graph_poi
 }
 void NeuralNetwork::back_propagation(uint32_t index) {
 	float *correct = (float*)malloc(sizeof(float)*output->kernel_layer_size);
-	for (uint32_t i = 0; i < output->kernel_layer_size; i++) {
-		if (i == index) {
-			correct[i] = 1.0f;
-		}else {
-			correct[i] = 0.0f;
-		}
-	}
+	
 }
 inline void weight_mul(OpenCL *context,cl_kernel kernel, uint32_t *dimensions,cl_mem *buffers,uint32_t* globals,uint32_t *locals) {
 	clSetKernelArg(kernel, 0, sizeof(uint32_t), &dimensions[0]);
@@ -698,11 +693,16 @@ inline void loss_kernel(OpenCL *context,cl_kernel cross_ent,cl_mem *buffers,uint
 	clFinish(context->getQueue());
 }
 void NeuralNetwork::loss(uint32_t index){
+	if (last_index >= 0) {
+		result_data[last_index] = 0.0f;
+	}
 	uint32_t locals[] = { context->getTileSize() };
-	float loss[1];
-	sum_elements(context, reduce_sum, &output->kernel_layer_size, locals, result_mem, loss);
-	cout <<"loss: "<<loss[0] << endl;
-	last_index = index;
+	result_data[index] = 1.0f;
+	cl_mem buffers[] = { result_mem,output->layer_mem };
+	loss_kernel(context, cross_entropy, buffers, &output->kernel_layer_size);
+	sum_elements(context, reduce_sum, &output->kernel_layer_size, locals, result_mem, &loss_value);
+	cout <<"loss: "<<loss_value << endl;
+	last_index = index; 
 }
 
 /*float *result = (float*)malloc(sizeof(float)*size[0]);
