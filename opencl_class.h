@@ -6,9 +6,10 @@ using namespace std;
 
 struct matrix {
 	unsigned int width;			//The width of the matrix.
-	unsigned int height;
-	unsigned int kernel_width;	//An increased value of the matrix. This must be done, because the the width value must be a multiple of a given value.The value depends on the GPU hardware.
-	float* data;		//This contains the values of the matrix. If the matrix has an N width smaller then the kernel_width, than the rows Nth row, and the rows after it will contain only zeros.
+	unsigned int height;		
+	unsigned int kernel_width;	//An increased value of the width of matrix. This must be done, because the the width value must be a multiple of a given value.The value depends on the GPU hardware.
+	unsigned int kernel_height;  
+	float* data;				//This contains the values of the matrix. If the matrix has an N width smaller then the kernel_width, than the rows Nth row, and the rows after it will contain only zeros.
 
 	matrix operator=(matrix mat);
 };

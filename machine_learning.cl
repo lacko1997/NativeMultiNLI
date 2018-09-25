@@ -6,17 +6,21 @@ __kernel void cross_entropy(__global float* correct,
 	output[n]=correct[n]*log(result[n]);
 }
 
-__kernel void transpose (const int L,
-						 const int M,
+__kernel void transpose (const int L,//width
+						 const int M,//height
 						 float *matrix){
-	int lx=get_local_id(0);
-	int ly=get_local_id(1);
 	int x=get_global_id(0);
 	int y=get_global_id(1);
 	
 	__local float buffer[WPT][WPT];
 	if(x<L&&y<M){
-		buffer[lx][ly]
+		buffer[lx][ly]=in_out[y*L+x];
+	}
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	if(x<L&&y<M){
+		matrix[x*M+y]=buffer[ly][lx];
 	}
 }
 

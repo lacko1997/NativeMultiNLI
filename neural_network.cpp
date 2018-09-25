@@ -94,7 +94,6 @@ bool NeuralNetwork::find_graph_point(graph_point *index, uint32_t *loc){
 
 void NeuralNetwork::getMemoryInfo(){
 	//NeuralNetwork size
-	cout << __PRETTY_FUNCTION__ << endl;
 	uint32_t bytes = sizeof(NeuralNetwork);
 	cout << "NeuralNetwork class size: " << bytes << endl;
 	//Allocated memory for the output
@@ -166,7 +165,7 @@ void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl
 			cout << "[Connection] Activation function is necessary." << endl;
 			return;
 		}
-		connection *conn = (connection*)malloc(sizeof(float));
+		connection *conn = (connection*)malloc(sizeof(connection));
 		conn->id = conn_id;
 		//Connection id must be unique.
 		if (!insert_connection(conn)) {
@@ -186,8 +185,13 @@ void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl
 		if (remainder != 0) {
 			mWidth += context->getTileSize() - remainder;
 		}
-		uint32_t mHeight = (*graph_points)[loc_dst]->layer_size;
+		uint32_t mHeight = conn->from->layer_size;
+		remainder = mHeight % context->getTileSize();
+		if (remainder != 0) {
+			mHeight += context->getTileSize() - remainder;
+		}
 		conn->connection_weights.kernel_width = mWidth;
+		conn->connection_weights.kernel_height = mHeight;
 		conn->connection_weights.data = (float*)malloc(sizeof(float)*mWidth*mHeight);
 
 		(*graph_points)[loc_src]->out->push_back(conn);
@@ -196,9 +200,10 @@ void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl
 		uint32_t width = conn->connection_weights.width;
 		uint32_t height = conn->connection_weights.height;
 		uint32_t kernel_w= conn->connection_weights.kernel_width;
-		for (unsigned int y = 0; y <height; y++) {
+		uint32_t kernel_h = conn->connection_weights.kernel_height;
+		for (unsigned int y = 0; y <kernel_h; y++) {
 			for (unsigned int x = 0; x < kernel_w; x++) {
-				if (!(x < width)) {
+				if (!(x < width && y<height)) {
 					conn->connection_weights.data[y*kernel_w + x]=0.0f;
 				}
 			}
@@ -533,7 +538,7 @@ void NeuralNetwork::init() {
 		matrix *curr = &(*connections)[i]->connection_weights;
 		fvector *currv = &(*connections)[i]->biases;
 		//create a memory for the weight_matrices.
-		(*connections)[i]->mat_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, (curr->kernel_width*curr->height) * sizeof(float), NULL, NULL);
+		(*connections)[i]->mat_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, (curr->kernel_width*curr->kernel_height) * sizeof(float), NULL, NULL);
 		(*connections)[i]->bias_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, currv->kernel_length*sizeof(float), NULL, NULL);
 		for (unsigned int y = 0; y < curr->height; y++) {
 			for (unsigned int x = 0; x < curr->width; x++) {
