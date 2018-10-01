@@ -8,7 +8,7 @@ cl_kernel NeuralNetwork::add;
 cl_kernel NeuralNetwork::vec_mat_mul_add;
 cl_kernel NeuralNetwork::cross_entropy;
 
-inline void powOfE(OpenCL *context, cl_kernel softmax_pow, cl_mem output_mem, dense_layer *output, uint32_t *size) {
+inline void powOfE(OpenCL *context, cl_kernel softmax_pow, cl_mem output_mem, graph_point *output, uint32_t *size) {
 	float sum = 0.0f;
 	//clEnqueueWriteBuffer(context->getQueue(), output_mem, false, 0, size[0] * sizeof(float), output_data, 0, NULL, NULL);
 	clSetKernelArg(softmax_pow, 0, sizeof(uint32_t), &output->layer_size);
@@ -103,7 +103,7 @@ void NeuralNetwork::getMemoryInfo(){
 	}
 	//Allocated Memory for input pointers;
 	if (input) {
-		uint32_t input_sz = input->size() * sizeof(dense_layer*) + sizeof(Ptr_List<dense_layer*>);
+		uint32_t input_sz = input->size() * sizeof(graph_point*) + sizeof(Ptr_List<graph_point*>);
 		bytes += input_sz;
 		cout << "The size of the input list in bytes: " << input_sz << endl;
 	}
@@ -111,29 +111,17 @@ void NeuralNetwork::getMemoryInfo(){
 	if (graph_points) {
 		//The vector size
 		uint32_t graph_point_bytes = sizeof(vector<graph_point*>);
+		//The size of the graph_points in the vector<graph_point> object;
+		graph_point_bytes += (sizeof(graph_point*)+sizeof(graph_point))*graph_points->size();
 		//The size of the pointers to the connections coming in and going out of the graph_point.
 		for (unsigned int i = 0; i < graph_points->size(); i++) {
-			//The size of the graph_points in the vector<graph_point> object;
-			switch ((*graph_points)[i]->type) {
-				case NN_LAYER_TYPE_DENSE_LAYER:
-					graph_point_bytes += sizeof(dense_layer);
-					if ((*graph_points)[i]->layer.in) {
-						graph_point_bytes += sizeof(Ptr_List<connection*>);
-						graph_point_bytes += sizeof(connection*)*(*graph_points)[i]->layer.in->size();
-					}
-					if ((*graph_points)[i]->layer.out) {
-						graph_point_bytes += sizeof(Ptr_List<connection*>);
-						graph_point_bytes += sizeof(connection*)*(*graph_points)[i]->layer.out->size();
-					}
-					break;
-				case NN_LAYER_TYPE_RECURRENT_LAYER:
-					//TODO:graph_point_bytes += sizeof(recurrent_layer);
-					break;
-				case NN_LAYER_TYPE_LAYER_OP:
-					if ((*graph_points)[i]->operation.inputs) {
-						graph_point_bytes += sizeof(layer_op);
-					}
-					break;
+			if ((*graph_points)[i]->in) {
+				graph_point_bytes += sizeof(Ptr_List<connection*>);
+				graph_point_bytes += sizeof(connection*)*(*graph_points)[i]->in->size();
+			}
+			if ((*graph_points)[i]->out) {
+				graph_point_bytes += sizeof(Ptr_List<connection*>);
+			graph_point_bytes += sizeof(connection*)*(*graph_points)[i]->out->size();
 			}
 		}
 		cout << "The size of the graph points in the neural network in bytes: " << graph_point_bytes<<endl;
@@ -158,7 +146,7 @@ void NeuralNetwork::getMemoryInfo(){
 void NeuralNetwork::connectLayers(uint32_t src, uint32_t dst,uint32_t conn_id,cl_kernel *activation){
 	uint32_t loc_src, loc_dst;
 	if (findGraphPointById(src, &loc_src)&&findGraphPointById(dst,&loc_dst)) {
-		dense_layer **input_layer=input->iterator();
+		graph_point **input_layer=input->iterator();
 		//Output cannot be source
 		if (output->id == src) {
 			cout << "[Source] Graph point with id " << src << "is an output layer. It cannot be the source of a connection." << endl;
@@ -264,7 +252,7 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		cout << "An output layer was already set." << endl;
 		return;
 	}
-	output = (dense_layer*)malloc(sizeof(dense_layer));
+	output = (graph_point*)malloc(sizeof(graph_point));
 	output->id = layer_id;
 	if (insert_graph_point(output)) {
 		output->layer_size=layer_size;
@@ -281,17 +269,16 @@ void NeuralNetwork::setOutput(uint32_t layer_id, uint32_t layer_size){
 		output->in = new Ptr_List<connection*>();
 		output->out = NULL;
 		output->visited = false;
-		output->layer_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, sizeof(float)*output->kernel_layer_size, NULL, NULL);
-		output->backprop_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, sizeof(float)*output->kernel_layer_size, NULL, NULL);
+		output->layer_mem = NULL;
 	}else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
 		free(output);
 	};
 }
 
-bool NeuralNetwork::insert_graph_point(dense_layer *index){
+bool NeuralNetwork::insert_graph_point(graph_point *index){
 	uint32_t loc;
-	dense_layer point = *index;
+	graph_point point = *index;
 	if (graph_points->size() == 0) {
 		graph_points->push_back(index);
 		return true;
@@ -358,8 +345,8 @@ NeuralNetwork::NeuralNetwork(OpenCL *context) {
 		cout << "OpenCL not supported. NeuralNetwork object cannot be created properly." << endl;
 		return;
 	}
-	input = new Ptr_List<dense_layer*>();
-	graph_points =new vector<dense_layer*>();
+	input = new Ptr_List<graph_point*>();
+	graph_points =new vector<graph_point*>();
 	connections = new vector<connection*>();
 	result_data = NULL;
 	output = NULL;
@@ -404,19 +391,13 @@ void NeuralNetwork::addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel a
 		cout << "OpenCL not supported. NeuralNetwork::addLayer cannot be executed" << endl;
 		return;
 	}
-	dense_layer* curr=(dense_layer*)malloc(sizeof(dense_layer*));
+	graph_point* curr=(graph_point*)malloc(sizeof(graph_point*));
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->in= new Ptr_List<connection*>();
 		curr->out = new Ptr_List<connection*>();
 		curr->visited = false;
-		curr->layer_size = layer_size;
-		uint32_t rem = layer_size % context->getTileSize();
-		if (rem != 0) {
-			curr->kernel_layer_size=layer_size+context->getTileSize()-rem;
-		}
-		curr->layer_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, curr->kernel_layer_size, NULL, NULL);
-		curr->backprop_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, curr->kernel_layer_size, NULL, NULL);
+		curr->layer_mem = NULL;
 	}else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
 		free(curr);
@@ -428,7 +409,7 @@ void NeuralNetwork::addInputLayer(uint32_t layer_id, uint32_t layer_size){
 		cout << "OpenCL not supported. NeuralNetwork::addInputLayer cannot be executed" << endl;
 		return;
 	}
-	dense_layer* curr = (dense_layer*)malloc(sizeof(dense_layer*));
+	graph_point* curr = (graph_point*)malloc(sizeof(graph_point*));
 	curr->id = layer_id;
 	if (insert_graph_point(curr)) {
 		curr->layer_size = layer_size;
@@ -436,8 +417,6 @@ void NeuralNetwork::addInputLayer(uint32_t layer_id, uint32_t layer_size){
 		curr->out = new Ptr_List<connection*>();
 		curr->visited =true;
 		curr->layer_mem=clCreateBuffer(context->getContext(),CL_MEM_READ_WRITE,sizeof(float)*curr->kernel_layer_size,NULL,NULL);
-		curr->backprop_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, sizeof(float)*curr->kernel_layer_size, NULL, NULL);
-		
 		input->push_back(curr);
 	} else {
 		cout << "A layer with the id: " << layer_id << " already exists." << endl;
@@ -554,7 +533,7 @@ void NeuralNetwork::init() {
 	}
 	mt19937 generator((unsigned int)TIME_MILLIS);
 	for (unsigned int i = 0; i < connections->size(); i++) {
-		float sigma = sqrt(2.0f / ((*connections)[i]->from->layer_size() + (*connections)[i]->to->layer_size));
+		float sigma = sqrt(2.0f / ((*connections)[i]->from->layer_size + (*connections)[i]->to->layer_size));
 		normal_distribution<float> initializer(0.0f, sigma);
 		matrix *curr = &(*connections)[i]->connection_weights;
 		fvector *currv = &(*connections)[i]->biases;
@@ -579,7 +558,7 @@ void NeuralNetwork::init() {
 	clFinish(context->getQueue());
 }
 void NeuralNetwork::copy_to_input(float **data){
-	dense_layer **curr = input->iterator();
+	graph_point **curr = input->iterator();
 	int i = 0;
 	while (curr != NULL) {
 		clEnqueueWriteBuffer(context->getQueue(), (*curr)->layer_mem, false,0, sizeof(float)*(*curr)->layer_size,data[i],0,NULL,NULL);
@@ -588,12 +567,16 @@ void NeuralNetwork::copy_to_input(float **data){
 	}
 	clFinish(context->getQueue());
 }
-inline void collect_first_layers(Ptr_List<dense_layer*> *input,Ptr_Set<dense_layer*> *first) {
-	dense_layer **curr = input->iterator();
+inline void collect_first_layers(Ptr_List<graph_point*> *input,Ptr_Set<graph_point*> *first) {
+	graph_point **curr = input->iterator();
 	while (curr) {
 		first->insert(*curr);
 		curr=input->next();
 	}
+}
+void NeuralNetwork::back_propagation(uint32_t index) {
+	float *correct = (float*)malloc(sizeof(float)*output->kernel_layer_size);
+	
 }
 inline void weight_mul(OpenCL *context,cl_kernel kernel, uint32_t *dimensions,cl_mem *buffers,uint32_t* globals,uint32_t *locals) {
 	clSetKernelArg(kernel, 0, sizeof(uint32_t), &dimensions[0]);
@@ -615,8 +598,8 @@ inline void apply_activation(OpenCL *context,cl_kernel activation,cl_mem *buffer
 	clEnqueueNDRangeKernel(context->getQueue(), activation, 1, NULL, globals, NULL, 0, NULL, NULL);
 }
 
-inline void iterate(OpenCL *context,Ptr_Set<dense_layer*> *curr_layers,Ptr_Set<dense_layer*> *next_layers,cl_kernel *kernels) {
-	dense_layer** ptr = curr_layers->iterator();
+inline void iterate(OpenCL *context,Ptr_Set<graph_point*> *curr_layers,Ptr_Set<graph_point*> *next_layers,cl_kernel *kernels) {
+	graph_point** ptr = curr_layers->iterator();
 	while (ptr != NULL) {
 		Ptr_List<connection*> *conns = (*ptr)->out;
 		connection **curr_conn = conns->iterator();
@@ -646,6 +629,8 @@ inline void iterate(OpenCL *context,Ptr_Set<dense_layer*> *curr_layers,Ptr_Set<d
 				uint32_t globals[1] = { (*curr_conn)->biases.length };
 				uint32_t locals[1] = { 32 };
 
+				(*curr_conn)->to->layer_mem = clCreateBuffer(context->getContext(), CL_MEM_READ_WRITE, (*curr_conn)->to->kernel_layer_size, NULL, NULL);
+				
 				cl_mem buffers[4] = {
 					(*ptr)->layer_mem,
 					(*curr_conn)->to->layer_mem,
@@ -672,15 +657,27 @@ inline void iterate(OpenCL *context,Ptr_Set<dense_layer*> *curr_layers,Ptr_Set<d
 		clFinish(context->getQueue());
 	}
 }
-inline void swap(Ptr_Set<dense_layer*> **curr, Ptr_Set<dense_layer*> **next) {
+inline void swap(Ptr_Set<graph_point*> **curr, Ptr_Set<graph_point*> **next) {
 	(*curr)->clear(false);
 	delete *curr;
 	*curr = *next;
-	*next = new Ptr_Set<dense_layer*>();
+	*next = new Ptr_Set<graph_point*>();
+}
+
+inline void clean_gpu_memory(bool *input,Ptr_Set<graph_point*> *curr_layers) {
+	if (*input) {
+		*input = false;
+	}else {
+		graph_point **ptr = curr_layers->iterator();
+		while (ptr != NULL) {
+			clReleaseMemObject((*ptr)->layer_mem);
+			ptr = curr_layers->next();
+		}
+	}
 }
 void NeuralNetwork::forward_propagation(float * data){
-	Ptr_Set<dense_layer*> *curr_layers = new Ptr_Set<dense_layer*>();
-	Ptr_Set<dense_layer*> *next_layers = new Ptr_Set<dense_layer*>();
+	Ptr_Set<graph_point*> *curr_layers = new Ptr_Set<graph_point*>();
+	Ptr_Set<graph_point*> *next_layers = new Ptr_Set<graph_point*>();
 	
 	collect_first_layers(input,curr_layers);
 
@@ -689,6 +686,7 @@ void NeuralNetwork::forward_propagation(float * data){
 	cl_kernel kernels[] = { vec_mat_mul,vec_mat_mul_add,add };
 	while (curr_layers->size() == 1 && curr_layers->head() == output) {
 		iterate(context, curr_layers, next_layers, kernels);
+		clean_gpu_memory(&input, curr_layers);
 		swap(&curr_layers, &next_layers);
 	}
 	delete next_layers;
@@ -696,7 +694,7 @@ void NeuralNetwork::forward_propagation(float * data){
 inline void loss_kernel(OpenCL *context,cl_kernel cross_ent,cl_mem *buffers,uint32_t* globals) {
 	clSetKernelArg(cross_ent, 0, sizeof(buffers[0]), &buffers[0]);
 	clSetKernelArg(cross_ent, 1, sizeof(buffers[1]), &buffers[1]);
-	clSetKernelArg(cross_ent, 2, sizeof(buffers[2]), &buffers[2]);
+	clSetKernelArg(cross_ent, 2, sizeof(buffers[0]), &buffers[0]);
 	clEnqueueNDRangeKernel(context->getQueue(), cross_ent, 1, NULL, globals, NULL, 0, NULL, NULL);
 	clFinish(context->getQueue());
 }
@@ -706,19 +704,13 @@ void NeuralNetwork::loss(uint32_t index){
 	}
 	uint32_t locals[] = { context->getTileSize() };
 	result_data[index] = 1.0f;
-	cl_mem buffers[] = { result_mem,output->layer_mem,output->backprop_mem };
+	cl_mem buffers[] = { result_mem,output->layer_mem };
 	loss_kernel(context, cross_entropy, buffers, &output->kernel_layer_size);
-	clEnqueueCopyBuffer(context->getQueue(), output->backprop_mem, result_mem, 0, 0, sizeof(float)*output->kernel_layer_size, 0, NULL, NULL);
 	sum_elements(context, reduce_sum, &output->kernel_layer_size, locals, result_mem, &loss_value);
 	cout <<"loss: "<<loss_value << endl;
 	last_index = index; 
 }
-void NeuralNetwork::back_propagation(uint32_t index) {
-	Ptr_Set<dense_layer> *curr = new Ptr_Set<dense_layer>();
-	Ptr_Set<dense_layer> *next_layers = new Ptr_Set<dense_layer>();
 
-	
-}
 /*float *result = (float*)malloc(sizeof(float)*size[0]);
 clEnqueueReadBuffer(context->getQueue(), output_mem, false, 0, sizeof(float), result, 0, NULL, NULL);*/
 
@@ -726,11 +718,3 @@ clEnqueueReadBuffer(context->getQueue(), output_mem, false, 0, sizeof(float), re
 	cout << result[i] << " ";
 }
 cout << endl;*/
-
-graph_point & graph_point::operator=(dense_layer & layer){
-	this->
-}
-
-graph_point & graph_point::operator=(graph_point point){
-	// TODO: insert return statement here
-}
