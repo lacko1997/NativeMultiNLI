@@ -17,8 +17,8 @@ private:
 	static cl_kernel add;
 	static cl_kernel cross_entropy;
 
-	Ptr_List<dense_layer*> *input;
-	dense_layer *output = NULL;
+	Ptr_List<graph_point*> *input;
+	graph_point *output = NULL;
 
 	vector<graph_point*> *graph_points;
 	vector<connection*> *connections;
@@ -58,5 +58,5 @@ public:
 	void setOutput(uint32_t layer_id,uint32_t layer_size);
 
 	void addInputLayer(uint32_t layer_id, uint32_t layer_size);
-	void addLayer(uint32_t layer_id, uint32_t layer_size, cl_kernel activation);
+	void addLayer(uint32_t layer_id, uint32_t layer_size, NNLayerType type, cl_kernel activation);
 };

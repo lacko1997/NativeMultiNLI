@@ -7,7 +7,7 @@ struct graph_point;
 typedef enum NNLayerType {
 	NN_LAYER_TYPE_DENSE_LAYER = 0x01,
 	NN_LAYER_TYPE_RECURRENT_LAYER = 0x02,
-	NN_LAYER_TYPE_LAYER_OP = 0x04
+	NN_LAYER_TYPE_LAYER_OP = 0x03
 };
 
 typedef struct connection {
@@ -49,8 +49,6 @@ typedef struct RecurrentClassifiedTrainingInput {
 }RecurrentClassifiedTrainingInput;
 
 typedef struct dense_layer {
-	uint32_t kernel_layer_size;
-	int32_t layer_size;
 	cl_mem layer_mem;
 	cl_mem backprop_mem;
 
@@ -59,9 +57,9 @@ typedef struct dense_layer {
 }dense_layer;
 
 typedef struct layer_op {
-	dense_layer *output;
-	Ptr_List<dense_layer*> *inputs;
-	dense_layer *(*operation)(Ptr_List<dense_layer>);
+	connection *output;
+	Ptr_List<graph_point*> *inputs;
+	graph_point *(*operation)(Ptr_List<graph_point>);
 }layer_op;
 
 typedef struct graph_point {
@@ -69,6 +67,8 @@ typedef struct graph_point {
 	// every layer type must know these values.
 	uint32_t id;
 	bool visited;
+	uint32_t layer_size;
+	uint32_t kernel_layer_size;
 
 	union {
 		dense_layer layer;
